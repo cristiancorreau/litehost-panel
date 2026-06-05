@@ -175,22 +175,20 @@
     <h2>En marcha en minutos</h2>
     <p class="sub">Requiere Linux con nginx, php-fpm, mysql/mariadb, certbot y Python 3.11+. DNS con wildcard <code>*.tu-dominio</code>.</p>
     <div class="code">
-<span class="c"># 1) Código y entorno</span>
+<span class="c"># Instalador interactivo: instala dependencias, crea el venv,</span>
+<span class="c"># pregunta cada valor y genera el hash bcrypt + el secreto.</span>
 git clone https://github.com/cristiancorreau/litehost-panel.git /opt/sw-panel
-<span class="g">cd</span> /opt/sw-panel && python3 -m venv venv
-./venv/bin/pip install -r requirements.txt
+<span class="g">cd</span> /opt/sw-panel
+sudo ./install.sh
 
-<span class="c"># 2) Configuración</span>
-sudo cp .env.example /etc/sw-panel/panel.env   <span class="c"># edita hash + secreto</span>
+<span class="c"># ▸ Paso 4/8 · Configuración del panel</span>
+<span class="c">#     Usuario administrador del panel [admin]:</span>
+<span class="c">#     Contraseña del administrador: ********</span>
+<span class="c">#     Dominio base (wildcard *.dominio) [lab.example.com]:</span>
+<span class="g"># ✓</span> Servicio sw-panel activo (127.0.0.1:9080)
 
-<span class="c"># 3) Helper privilegiado + sudoers</span>
-sudo install -m 0750 deploy/sw-panel-helper /usr/local/bin/sw-panel-helper
-sudo install -m 0440 deploy/sudoers.sw-panel /etc/sudoers.d/sw-panel
-
-<span class="c"># 4) Servicio + vhost</span>
-sudo cp deploy/sw-panel.service /etc/systemd/system/ && sudo systemctl enable --now sw-panel
-sudo cp deploy/nginx-panel.conf.example /etc/nginx/sites-available/panel.conf
-sudo nginx -t && sudo systemctl reload nginx
+<span class="c"># ¿Solo regenerar el .env?</span>
+sudo ./install.sh --env-only
     </div>
     <div class="cta" style="justify-content:flex-start;margin-top:26px">
       <a class="btn btn-primary" href="https://github.com/cristiancorreau/litehost-panel#-quick-start" target="_blank" rel="noopener">Guía completa →</a>

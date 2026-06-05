@@ -113,13 +113,43 @@ flowchart LR
 > (SSL wildcard) y Python 3.11+. Opcional: [Coolify](https://coolify.io/) para apps Docker.
 > DNS con un wildcard `*.tu-dominio` apuntando al servidor.
 
+### Opción A · Instalador interactivo (recomendado)
+
+Un asistente paso a paso que instala dependencias, crea el venv, te pregunta cada valor,
+**genera el hash bcrypt y el secreto**, y deja listos el `.env`, el helper, sudoers, el
+servicio systemd y el vhost de nginx:
+
 ```bash
-# 1) Código y entorno virtual
-sudo mkdir -p /opt/sw-panel && sudo chown "$USER" /opt/sw-panel
 git clone https://github.com/cristiancorreau/litehost-panel.git /opt/sw-panel
 cd /opt/sw-panel
-python3 -m venv venv
-./venv/bin/pip install -r requirements.txt
+sudo ./install.sh
+```
+
+```text
+  LiteHost Panel · instalador
+  ---------------------------------------------
+  ▸ Paso 4/8 · Configuración del panel
+    — Acceso al panel —
+    Usuario administrador del panel [admin]:
+    Contraseña del administrador:
+    — Dominio —
+    Dominio base de los subdominios (wildcard *.dominio) [lab.example.com]:
+  ✓ Hash bcrypt de la contraseña generado
+  ✓ Servicio sw-panel activo (127.0.0.1:9080)
+```
+
+¿Solo quieres (re)generar la configuración? `sudo ./install.sh --env-only`
+
+### Opción B · Manual
+
+<details>
+<summary>Pasos manuales equivalentes</summary>
+
+```bash
+# 1) Código y entorno virtual
+git clone https://github.com/cristiancorreau/litehost-panel.git /opt/sw-panel
+cd /opt/sw-panel
+python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
 
 # 2) Configuración (genera hash y secreto siguiendo los comentarios)
 sudo mkdir -p /etc/sw-panel
@@ -140,6 +170,8 @@ sudo cp deploy/nginx-panel.conf.example /etc/nginx/sites-available/panel.conf
 sudo ln -s /etc/nginx/sites-available/panel.conf /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
+
+</details>
 
 El panel queda en **`https://panel.<tu-dominio>`**, protegido con HTTP Basic.
 

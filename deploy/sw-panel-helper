@@ -23,6 +23,10 @@ set -euo pipefail
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # --- Configuración (ajústala a tu servidor) --------------------------------
+# sudo limpia el entorno, así que las rutas se leen de este archivo (solo
+# variables PANEL_*; sin secretos). Lo genera install.sh.
+[ -r /etc/sw-panel/helper.env ] && . /etc/sw-panel/helper.env
+
 WWW_ROOT="${PANEL_WWW_ROOT:-/var/www}"
 NGINX_AVAILABLE="${PANEL_NGINX_AVAILABLE:-/etc/nginx/sites-available}"
 NGINX_ENABLED="${PANEL_NGINX_ENABLED:-/etc/nginx/sites-enabled}"
