@@ -20,6 +20,7 @@ documentación desde una sola interfaz.
 <a href="https://github.com/cristiancorreau/litehost-panel/issues/new">Reportar bug</a>
 </p>
 
+[![CI](https://github.com/cristiancorreau/litehost-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/cristiancorreau/litehost-panel/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-22c55e.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
