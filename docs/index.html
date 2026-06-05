@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiteHost Panel · Panel de hosting self-hosted con FastAPI</title>
+<meta name="description" content="Panel de control self-hosted y ligero (FastAPI) para administrar múltiples sitios WordPress, estáticos y apps Coolify detrás de nginx con SSL wildcard.">
+<meta property="og:title" content="LiteHost Panel">
+<meta property="og:description" content="Aprovisiona sitios WordPress, estáticos y apps Coolify detrás de nginx con SSL — desde una sola interfaz.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="banner.svg">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230b1120'/><circle cx='10' cy='11' r='3' fill='%234ade80'/><circle cx='10' cy='21' r='3' fill='%2322d3ee'/><rect x='16' y='9' width='9' height='4' rx='2' fill='%23334155'/><rect x='16' y='19' width='9' height='4' rx='2' fill='%23334155'/></svg>">
+<style>
+  :root{
+    --bg:#0b1120; --bg2:#111827; --card:#0f172a; --line:#1f2937;
+    --txt:#e2e8f0; --muted:#94a3b8; --green:#4ade80; --cyan:#22d3ee; --violet:#a78bfa;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    background:radial-gradient(1200px 600px at 50% -10%, #16203a 0%, var(--bg) 55%);
+    color:var(--txt);line-height:1.6;-webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 24px}
+  .accent{background:linear-gradient(120deg,var(--green),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:10;backdrop-filter:blur(10px);
+    background:rgba(11,17,32,.72);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px}
+  .brand .dot{width:22px;height:22px;border-radius:6px;background:#1e293b;border:1px solid #334155;position:relative}
+  .brand .dot::before{content:"";position:absolute;left:5px;top:5px;width:6px;height:6px;border-radius:50%;background:var(--green)}
+  .nav-links{display:flex;gap:22px;align-items:center;font-size:14px;color:var(--muted)}
+  .nav-links a:hover{color:var(--txt)}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:10px;font-weight:600;font-size:14px;transition:.15s}
+  .btn-primary{background:linear-gradient(120deg,var(--green),var(--cyan));color:#04140c}
+  .btn-primary:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  .btn-ghost{border:1px solid var(--line);color:var(--txt)}
+  .btn-ghost:hover{border-color:#3f4d63;background:#0f172a}
+
+  /* hero */
+  header.hero{text-align:center;padding:84px 0 64px}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--green);
+    background:#052e1a;border:1px solid #166534;padding:6px 14px;border-radius:999px;margin-bottom:26px}
+  .hero h1{font-size:clamp(38px,6vw,64px);line-height:1.05;letter-spacing:-1.5px;font-weight:800}
+  .hero p.lead{max-width:680px;margin:22px auto 0;font-size:clamp(16px,2.2vw,20px);color:var(--muted)}
+  .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:34px}
+  .hero img.banner{width:100%;max-width:860px;margin:54px auto 0;display:block;border-radius:18px;border:1px solid var(--line);box-shadow:0 30px 80px -30px rgba(0,0,0,.8)}
+
+  /* sections */
+  section{padding:60px 0;border-top:1px solid var(--line)}
+  .eyebrow{font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--cyan)}
+  h2{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;margin:8px 0 10px;font-weight:800}
+  .sub{color:var(--muted);max-width:620px;margin-bottom:36px}
+
+  /* features grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+  .card{background:linear-gradient(180deg,var(--card),#0c1426);border:1px solid var(--line);
+    border-radius:16px;padding:22px;transition:.18s}
+  .card:hover{border-color:#33415590;transform:translateY(-3px);box-shadow:0 20px 50px -30px rgba(34,211,238,.5)}
+  .card .ico{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;font-size:20px;margin-bottom:14px;
+    background:#0b1120;border:1px solid var(--line)}
+  .card h3{font-size:16px;margin-bottom:6px}
+  .card p{font-size:14px;color:var(--muted)}
+
+  /* stack chips */
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+  .chip{font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;border:1px solid var(--line);
+    background:#0f172a;color:#cbd5e1}
+
+  /* code block */
+  .code{background:#070d1a;border:1px solid var(--line);border-radius:14px;padding:20px 22px;overflow:auto;
+    font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;font-size:13.5px;line-height:1.8;color:#cbd5e1}
+  .code .c{color:#64748b}
+  .code .g{color:var(--green)}
+
+  /* two col */
+  .two{display:grid;grid-template-columns:1.1fr 1fr;gap:40px;align-items:start}
+  @media(max-width:760px){.two{grid-template-columns:1fr}.nav-links a:not(.btn){display:none}}
+
+  .arch{background:linear-gradient(180deg,var(--card),#0c1426);border:1px solid var(--line);border-radius:16px;padding:24px}
+  .flow{display:flex;flex-direction:column;gap:10px;font-size:14px}
+  .flow .row{display:flex;align-items:center;gap:12px}
+  .node{flex:1;background:#0b1120;border:1px solid var(--line);border-radius:10px;padding:11px 14px}
+  .node.p{border-color:#166534;background:#052e1a;color:#bbf7d0}
+  .arrow{color:var(--muted);font-size:13px;white-space:nowrap}
+
+  footer{padding:50px 0;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:14px}
+  footer a{color:var(--cyan)}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span> LiteHost <span class="accent">Panel</span></div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#arquitectura">Arquitectura</a>
+      <a href="#install">Instalar</a>
+      <a class="btn btn-ghost" href="https://github.com/cristiancorreau/litehost-panel" target="_blank" rel="noopener">★ GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="pill">● Open source · MIT · self-hosted</span>
+    <h1>Tu servidor, <span class="accent">muchos sitios</span>,<br>un solo panel.</h1>
+    <p class="lead">
+      Panel de control ligero en <b>FastAPI</b> que aprovisiona sitios <b>WordPress</b>,
+      <b>estáticos</b> y apps de <b>Coolify</b> como subdominios detrás de <b>nginx</b> con
+      SSL wildcard — con backups, gestor de archivos, PHP-FPM y métricas incluidos.
+    </p>
+    <div class="cta">
+      <a class="btn btn-primary" href="#install">🚀 Empezar</a>
+      <a class="btn btn-ghost" href="https://github.com/cristiancorreau/litehost-panel" target="_blank" rel="noopener">Ver en GitHub →</a>
+    </div>
+    <img class="banner" src="banner.svg" alt="LiteHost Panel">
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <div class="eyebrow">Capacidades</div>
+    <h2>Todo lo de un hosting, sin la maraña</h2>
+    <p class="sub">Creas un subdominio, eliges el tipo de sitio y el panel se encarga del docroot, la base de datos, el vhost, el SSL y el backup.</p>
+    <div class="grid">
+      <div class="card"><div class="ico">🟢</div><h3>Sitios WordPress</h3><p>Core + BD + usuario MySQL + <code>wp-config</code> + vhost + <code>wp core install</code>, automático.</p></div>
+      <div class="card"><div class="ico">🔵</div><h3>Sitios estáticos</h3><p>Docroot y vhost listos, con instrucciones de subida por scp o zip.</p></div>
+      <div class="card"><div class="ico">♻️</div><h3>Restore Duplicator</h3><p>Desde paquete o disco, con reescritura de URLs vía <code>wp search-replace</code>.</p></div>
+      <div class="card"><div class="ico">🟣</div><h3>Apps Coolify</h3><p>Subdominio con <code>proxy_pass</code> a un puerto del host gestionado por Coolify.</p></div>
+      <div class="card"><div class="ico">🌐</div><h3>Vhosts nginx</h3><p>Inventario en vivo, plantillas php/static/proxy, habilitar, eliminar, cambiar PHP.</p></div>
+      <div class="card"><div class="ico">⚙️</div><h3>PHP-FPM</h3><p>Editar el pool por versión: <code>pm</code>, <code>memory_limit</code>, uploads y más.</p></div>
+      <div class="card"><div class="ico">💾</div><h3>Backups & restore</h3><p><code>mysqldump</code> + <code>tar</code> automáticos al borrar, restaurables desde la UI.</p></div>
+      <div class="card"><div class="ico">📂</div><h3>Gestor de archivos</h3><p>Navegar, editar, subir y cambiar permisos dentro de <code>/var/www</code>.</p></div>
+      <div class="card"><div class="ico">📊</div><h3>Métricas</h3><p>CPU, RAM, disco y uso por sitio de un vistazo.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="arquitectura">
+  <div class="wrap two">
+    <div>
+      <div class="eyebrow">Cómo funciona</div>
+      <h2>Mínimo privilegio por diseño</h2>
+      <p class="sub">El panel corre como un usuario <b>sin privilegios</b>. Cada acción root se delega en un único helper auditable (<code>sw-panel-helper</code>) autorizado por una regla de <code>sudoers</code> acotada exclusivamente a ese binario.</p>
+      <div class="chips">
+        <span class="chip">FastAPI</span><span class="chip">Uvicorn</span><span class="chip">Jinja2</span>
+        <span class="chip">SQLAlchemy</span><span class="chip">SQLite</span><span class="chip">PyMySQL</span>
+        <span class="chip">nginx</span><span class="chip">PHP-FPM</span><span class="chip">Coolify</span>
+      </div>
+    </div>
+    <div class="arch">
+      <div class="flow">
+        <div class="row"><div class="node">🌐 Navegador</div></div>
+        <div class="arrow">↓ HTTPS</div>
+        <div class="row"><div class="node">nginx · vhost por subdominio · SSL wildcard</div></div>
+        <div class="arrow">↓ rutea por server_name</div>
+        <div class="row"><div class="node p">LiteHost Panel · FastAPI :9080</div></div>
+        <div class="row"><div class="node">WordPress · PHP-FPM</div><div class="node">Estático · /var/www</div></div>
+        <div class="row"><div class="node">Apps Coolify · :8101-8200</div></div>
+        <div class="arrow">↑ el panel delega root vía <code>sudo · sw-panel-helper</code> → nginx · PHP · MySQL</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <div class="eyebrow">Quick start</div>
+    <h2>En marcha en minutos</h2>
+    <p class="sub">Requiere Linux con nginx, php-fpm, mysql/mariadb, certbot y Python 3.11+. DNS con wildcard <code>*.tu-dominio</code>.</p>
+    <div class="code">
+<span class="c"># 1) Código y entorno</span>
+git clone https://github.com/cristiancorreau/litehost-panel.git /opt/sw-panel
+<span class="g">cd</span> /opt/sw-panel && python3 -m venv venv
+./venv/bin/pip install -r requirements.txt
+
+<span class="c"># 2) Configuración</span>
+sudo cp .env.example /etc/sw-panel/panel.env   <span class="c"># edita hash + secreto</span>
+
+<span class="c"># 3) Helper privilegiado + sudoers</span>
+sudo install -m 0750 deploy/sw-panel-helper /usr/local/bin/sw-panel-helper
+sudo install -m 0440 deploy/sudoers.sw-panel /etc/sudoers.d/sw-panel
+
+<span class="c"># 4) Servicio + vhost</span>
+sudo cp deploy/sw-panel.service /etc/systemd/system/ && sudo systemctl enable --now sw-panel
+sudo cp deploy/nginx-panel.conf.example /etc/nginx/sites-available/panel.conf
+sudo nginx -t && sudo systemctl reload nginx
+    </div>
+    <div class="cta" style="justify-content:flex-start;margin-top:26px">
+      <a class="btn btn-primary" href="https://github.com/cristiancorreau/litehost-panel#-quick-start" target="_blank" rel="noopener">Guía completa →</a>
+      <a class="btn btn-ghost" href="https://github.com/cristiancorreau/litehost-panel/blob/main/.env.example" target="_blank" rel="noopener">Ver .env.example</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p><b>LiteHost Panel</b> — hecho con ☕ y FastAPI · licencia MIT</p>
+    <p style="margin-top:8px">
+      <a href="https://github.com/cristiancorreau/litehost-panel" target="_blank" rel="noopener">GitHub</a> ·
+      <a href="https://github.com/cristiancorreau/litehost-panel/issues" target="_blank" rel="noopener">Issues</a> ·
+      <a href="https://github.com/cristiancorreau/litehost-panel/blob/main/LICENSE" target="_blank" rel="noopener">Licencia</a>
+    </p>
+    <p style="margin-top:14px">Si te resulta útil, deja una ⭐ en el repo.</p>
+  </div>
+</footer>
+
+</body>
+</html>
