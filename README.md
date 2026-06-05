@@ -25,7 +25,7 @@ documentación desde una sola interfaz.
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![nginx](https://img.shields.io/badge/nginx-009639?logo=nginx&logoColor=white)](https://nginx.org)
 ![Self-hosted](https://img.shields.io/badge/self--hosted-0b1120?logo=linux&logoColor=white)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-a78bfa.svg)](#-contribuir)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-a78bfa.svg)](CONTRIBUTING.md)
 [![GitHub stars](https://img.shields.io/github/stars/cristiancorreau/litehost-panel?style=social)](https://github.com/cristiancorreau/litehost-panel/stargazers)
 
 </div>
@@ -256,7 +256,8 @@ producción**.
 
 Los PRs son bienvenidos. Para cambios grandes, abre primero un *issue* para discutir la idea.
 Al ser una herramienta de infraestructura, presta especial atención al `sw-panel-helper` y a
-los límites de rutas/permisos.
+los límites de rutas/permisos. Lee la **[guía de contribución](CONTRIBUTING.md)** para el
+entorno de desarrollo, el estilo de código y el proceso de PR.
 
 ## 📄 Licencia
 
