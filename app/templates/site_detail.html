@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}{{site.fqdn}} — Admin{% endblock %}
+{% block content %}
+<a href="/" class="text-sm text-zinc-400 hover:text-white">← Sitios</a>
+<div class="flex items-center justify-between mb-4 mt-2">
+  <h1 class="text-2xl font-semibold">{{site.fqdn}}</h1>
+  <span class="px-2 py-1 text-xs rounded
+    {% if site.status=='ready' %}bg-emerald-900/40 text-emerald-300
+    {% elif site.status=='creating' %}bg-amber-900/40 text-amber-300
+    {% elif site.status=='deleted' %}bg-zinc-800 text-zinc-400
+    {% else %}bg-red-900/40 text-red-300{% endif %}">{{site.status}}</span>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+  <div class="border border-zinc-800 rounded-lg p-4">
+    <div class="text-xs text-zinc-500 uppercase mb-2">Datos</div>
+    <dl class="text-sm space-y-1">
+      <div class="flex justify-between"><dt class="text-zinc-400">Tipo</dt><dd>{{site.type}}</dd></div>
+      <div class="flex justify-between"><dt class="text-zinc-400">Subdominio</dt><dd>{{site.subdomain}}</dd></div>
+      {% if site.docroot %}<div class="flex justify-between"><dt class="text-zinc-400">Docroot</dt><dd class="font-mono text-xs">{{site.docroot}}</dd></div>{% endif %}
+      {% if site.php_version %}<div class="flex justify-between"><dt class="text-zinc-400">PHP</dt><dd>{{site.php_version}}</dd></div>{% endif %}
+      {% if site.db_name %}<div class="flex justify-between"><dt class="text-zinc-400">BD</dt><dd class="font-mono text-xs">{{site.db_name}}</dd></div>{% endif %}
+      {% if site.db_user %}<div class="flex justify-between"><dt class="text-zinc-400">DB user</dt><dd class="font-mono text-xs">{{site.db_user}}</dd></div>{% endif %}
+      {% if site.coolify_uuid %}<div class="flex justify-between"><dt class="text-zinc-400">Coolify UUID</dt><dd class="font-mono text-xs">{{site.coolify_uuid}}</dd></div>{% endif %}
+      {% if site.coolify_port %}<div class="flex justify-between"><dt class="text-zinc-400">Host port</dt><dd>{{site.coolify_port}}</dd></div>{% endif %}
+      <div class="flex justify-between"><dt class="text-zinc-400">Creado</dt><dd>{{site.created_at.strftime('%Y-%m-%d %H:%M')}}</dd></div>
+    </dl>
+    {% if site.status == 'ready' %}
+    <div class="mt-3 flex flex-wrap gap-3">
+      <a href="https://{{site.fqdn}}" target="_blank" class="text-sm text-emerald-400 hover:underline">abrir sitio ↗</a>
+      {% if site.docroot %}
+      <a href="https://vscode.lab.example.com/?folder={{site.docroot}}" target="_blank"
+         class="text-sm text-blue-400 hover:underline">editar en VSCode ↗</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if site.extra and site.extra.get('zip') %}
+  <div class="border border-zinc-800 rounded-lg p-4">
+    <div class="text-xs text-zinc-500 uppercase mb-2">Contenido del ZIP</div>
+    <dl class="text-sm space-y-1">
+      <div class="flex justify-between"><dt class="text-zinc-400">Total entries</dt><dd>{{ site.extra.zip.total }}</dd></div>
+      <div class="flex justify-between"><dt class="text-zinc-400">Tamaño descomprimido</dt><dd>{{ '%.1f' % (site.extra.zip.size_uncompressed / 1024 / 1024) }} MB</dd></div>
+      <div class="flex justify-between"><dt class="text-zinc-400">index.html en raíz</dt><dd>{{ "sí" if site.extra.zip.has_index_root else "no" }}</dd></div>
+    </dl>
+    {% if site.extra.zip.wrapped_in %}
+    <div class="mt-3 p-3 rounded border border-amber-700 bg-amber-900/20 text-amber-200 text-xs">
+      <strong>El ZIP envolvió todo en la carpeta <code class="bg-zinc-900 px-1 rounded">{{site.extra.zip.wrapped_in}}/</code></strong><br>
+      El sitio se sirve realmente en:<br>
+      <a href="{{ site.extra.effective_url }}" target="_blank" class="text-amber-300 underline break-all">{{ site.extra.effective_url }}</a><br><br>
+      Para que funcione en la raíz <code class="bg-zinc-900 px-1 rounded">https://{{site.fqdn}}/</code>, vuelve a comprimir el ZIP sin esa carpeta padre y re-sube.
+    </div>
+    {% elif not site.extra.zip.has_index_root %}
+    <div class="mt-3 p-3 rounded border border-amber-700 bg-amber-900/20 text-amber-200 text-xs">
+      No hay <code class="bg-zinc-900 px-1 rounded">index.html</code> en la raíz del ZIP. La URL principal probablemente dará 403/404. Asegúrate que el archivo se llame exactamente <code class="bg-zinc-900 px-1 rounded">index.html</code> y esté en el primer nivel.
+    </div>
+    {% endif %}
+  </div>
+  {% elif site.extra %}
+  <div class="border border-zinc-800 rounded-lg p-4">
+    <div class="text-xs text-zinc-500 uppercase mb-2">Extra</div>
+    <pre class="text-xs text-zinc-300 whitespace-pre-wrap break-all">{{ site.extra | tojson(indent=2) }}</pre>
+    {% if site.extra.wizard_url %}
+    <a href="{{site.extra.wizard_url}}" target="_blank" class="mt-3 inline-block text-sm text-purple-400 hover:underline">Abrir wizard Duplicator ↗</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{% if site.type == 'coolify_service' and site.extra %}
+<div class="border border-emerald-700/50 bg-emerald-900/10 rounded-lg p-4 mb-6">
+  <div class="text-xs text-emerald-300 uppercase mb-3 font-semibold">Servicio Coolify</div>
+  <dl class="text-sm space-y-1">
+    {% if site.extra.service_name %}<div class="flex justify-between"><dt class="text-zinc-400">Nombre</dt><dd>{{ site.extra.service_name }}</dd></div>{% endif %}
+    {% if site.extra.service_type %}<div class="flex justify-between"><dt class="text-zinc-400">Tipo</dt><dd>{{ site.extra.service_type }}</dd></div>{% endif %}
+    {% if site.extra.service_app_name %}<div class="flex justify-between"><dt class="text-zinc-400">Sub-app</dt><dd class="font-mono text-xs">{{ site.extra.service_app_name }}</dd></div>{% endif %}
+    <div class="flex justify-between"><dt class="text-zinc-400">Puerto host</dt><dd class="font-mono text-xs">127.0.0.1:{{ site.extra.host_port }}</dd></div>
+    <div class="flex justify-between"><dt class="text-zinc-400">Puerto contenedor</dt><dd class="font-mono text-xs">{{ site.extra.container_port }}</dd></div>
+  </dl>
+  <div class="mt-3 text-xs text-zinc-400 space-y-1">
+    <p>El service vive en Coolify. Desde aquí sólo se gestiona el vhost nginx.</p>
+    {% if site.coolify_uuid %}
+    <p><a href="https://coolify.lab.example.com/project/" target="_blank" class="text-emerald-400 hover:underline">Abrir en Coolify ↗</a> · UUID <code class="font-mono">{{ site.coolify_uuid }}</code></p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if site.extra and site.extra.get('zip') and site.extra.zip.entries %}
+<div class="border border-zinc-800 rounded-lg p-4 mb-6">
+  <div class="text-xs text-zinc-500 uppercase mb-3">Archivos descomprimidos
+    <span class="text-zinc-400">({{ site.extra.zip.total }} total{% if site.extra.zip.entries|length < site.extra.zip.total %}, mostrando primeros {{ site.extra.zip.entries|length }}{% endif %})</span>
+  </div>
+  <pre class="bg-zinc-950 p-3 rounded text-xs text-zinc-300 max-h-80 overflow-y-auto font-mono">{% for f in site.extra.zip.entries %}{{ f }}
+{% endfor %}</pre>
+</div>
+{% endif %}
+
+{% if site.php_version and site.status == 'ready' %}
+<div class="border border-zinc-800 rounded-lg p-4 mb-6">
+  <div class="text-xs text-zinc-500 uppercase mb-2">Versión de PHP</div>
+  <form method="post" action="/sites/{{site.id}}/set-php" class="flex flex-wrap items-end gap-3">
+    <label class="text-sm">
+      <span class="block mb-1 text-zinc-400">Cambiar a</span>
+      <select name="php_version"
+              class="px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+        {% for v in php_versions %}
+          <option value="{{v}}" {% if v == site.php_version %}selected{% endif %}>{{v}}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm font-medium">Aplicar</button>
+    <span class="text-xs text-zinc-500">Reescribe el <code class="bg-zinc-900 px-1 rounded">fastcgi_pass</code> del vhost y recarga nginx. Se guarda backup del vhost.</span>
+  </form>
+  {% if php_change_msg %}
+  <div class="mt-3 text-xs {% if php_change_ok %}text-emerald-400{% else %}text-red-400{% endif %}">{{ php_change_msg }}</div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="border border-zinc-800 rounded-lg p-4 mb-6">
+  <div class="text-xs text-zinc-500 uppercase mb-2">Operaciones</div>
+  <div class="space-y-3">
+    {% for op in operations %}
+    <details class="border border-zinc-800 rounded p-2 text-sm">
+      <summary class="cursor-pointer flex justify-between">
+        <span><span class="font-mono">{{op.action}}</span>
+          <span class="ml-2 px-1.5 py-0.5 text-xs rounded
+            {% if op.status=='ok' %}bg-emerald-900/40 text-emerald-300
+            {% elif op.status=='running' %}bg-amber-900/40 text-amber-300
+            {% else %}bg-red-900/40 text-red-300{% endif %}">{{op.status}}</span>
+        </span>
+        <span class="text-zinc-500">{{ op.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+      </summary>
+      <pre class="mt-2 text-xs bg-zinc-950 p-3 rounded overflow-x-auto whitespace-pre-wrap break-all text-zinc-300">{{op.log}}</pre>
+    </details>
+    {% else %}
+    <div class="text-sm text-zinc-500">Sin operaciones registradas.</div>
+    {% endfor %}
+  </div>
+</div>
+
+{% if site.status != 'deleted' %}
+<div class="border border-red-900/50 rounded-lg p-4 bg-red-950/20">
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <div class="text-red-400 font-medium text-sm">Zona peligrosa</div>
+      <div class="text-xs text-zinc-400 mt-1">Eliminar este sitio borra archivos, base de datos y vhost. Se crea un backup automático antes.</div>
+    </div>
+    <button type="button" id="open-delete-modal"
+            class="px-3 py-2 bg-red-700 hover:bg-red-600 rounded text-sm font-medium whitespace-nowrap">
+      Eliminar sitio…
+    </button>
+  </div>
+</div>
+
+<!-- Modal de confirmación -->
+<div id="delete-modal" class="fixed inset-0 z-40 hidden bg-black/80 backdrop-blur items-center justify-center p-6">
+  <div class="max-w-lg w-full bg-zinc-900 border border-red-900 rounded-xl p-6 shadow-2xl">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center flex-none">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.732 0 2.814-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+        </svg>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold">¿Eliminar este sitio?</h3>
+        <p class="text-xs text-zinc-500 font-mono mt-0.5">{{site.fqdn}}</p>
+      </div>
+    </div>
+
+    <p class="text-sm text-zinc-300 mb-3">Esta acción es <strong>irreversible</strong>. Se eliminará lo siguiente:</p>
+    <ul class="text-sm space-y-1.5 mb-4 text-zinc-300">
+      {% if site.docroot %}<li class="flex items-start gap-2"><span class="text-red-400">•</span><span>Archivos en <code class="bg-zinc-800 px-1 rounded text-xs">{{site.docroot}}</code></span></li>{% endif %}
+      {% if site.db_name %}<li class="flex items-start gap-2"><span class="text-red-400">•</span><span>Base de datos <code class="bg-zinc-800 px-1 rounded text-xs">{{site.db_name}}</code> y user <code class="bg-zinc-800 px-1 rounded text-xs">{{site.db_user}}</code></span></li>{% endif %}
+      <li class="flex items-start gap-2"><span class="text-red-400">•</span><span>Vhost nginx <code class="bg-zinc-800 px-1 rounded text-xs">/etc/nginx/sites-{available,enabled}/{{site.fqdn}}</code></span></li>
+      {% if site.coolify_uuid %}<li class="flex items-start gap-2"><span class="text-red-400">•</span><span>Aplicación en Coolify (UUID <code class="bg-zinc-800 px-1 rounded text-xs">{{site.coolify_uuid}}</code>)</span></li>{% endif %}
+    </ul>
+
+    <div class="p-3 rounded border border-emerald-700/40 bg-emerald-900/10 text-emerald-200 text-xs mb-4">
+      <strong>Antes de borrar</strong> se hace un backup automático en
+      <code class="bg-zinc-900 px-1 rounded">/home/appuser/sw-panel-backups/{{site.subdomain}}/</code>
+      (dump SQL + tar de archivos). Puedes restaurarlo después desde la sección <a href="/restore" class="underline">Restaurar</a>.
+    </div>
+
+    {% set delete_steps = [] %}
+    {% if site.db_name %}{% set _ = delete_steps.append("Generando dump SQL del backup") %}{% endif %}
+    {% if site.docroot %}{% set _ = delete_steps.append("Empaquetando archivos en tar.gz") %}{% endif %}
+    {% if site.coolify_uuid %}{% set _ = delete_steps.append("Borrando aplicación de Coolify") %}{% endif %}
+    {% set _ = delete_steps.append("Removiendo vhost nginx + reload") %}
+    {% if site.db_name %}{% set _ = delete_steps.append("Dropeando base de datos y user MySQL") %}{% endif %}
+    {% if site.docroot %}{% set _ = delete_steps.append("Borrando archivos del docroot") %}{% endif %}
+    {% set _ = delete_steps.append("Listo") %}
+    <form method="post" action="/sites/{{site.id}}/delete" id="delete-form"
+          data-loader-title="Eliminando sitio…"
+          data-loader-interval="2500"
+          data-loader-steps='{{ delete_steps | tojson }}'>
+      <label class="block text-sm">
+        <span class="block mb-1 text-zinc-400">Para confirmar, escribe <strong class="text-red-400 font-mono">borrar</strong>:</span>
+        <input name="confirm" required pattern="borrar" autocomplete="off" id="delete-confirm-input"
+               class="w-full px-3 py-2 bg-zinc-950 border border-red-800 rounded text-sm font-mono"
+               placeholder="borrar">
+      </label>
+      <div class="flex justify-end gap-2 mt-4">
+        <button type="button" id="cancel-delete-modal"
+                class="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm">Cancelar</button>
+        <button type="submit" id="confirm-delete-btn" disabled
+                class="px-4 py-2 bg-red-700 hover:bg-red-600 disabled:bg-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400 rounded text-sm font-medium">
+          Eliminar definitivamente
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+  const modal = document.getElementById('delete-modal');
+  const openBtn = document.getElementById('open-delete-modal');
+  const cancelBtn = document.getElementById('cancel-delete-modal');
+  const input = document.getElementById('delete-confirm-input');
+  const submit = document.getElementById('confirm-delete-btn');
+  function openModal(){
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    setTimeout(() => input.focus(), 50);
+  }
+  function closeModal(){
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    input.value = '';
+    submit.disabled = true;
+  }
+  openBtn.addEventListener('click', openModal);
+  cancelBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+  });
+  input.addEventListener('input', () => {
+    submit.disabled = input.value.trim().toLowerCase() !== 'borrar';
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

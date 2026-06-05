@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Restaurar — Admin{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-2">Restaurar desde backup</h1>
+<p class="text-sm text-zinc-500 mb-6">Cuando borras un sitio, el panel guarda el dump SQL + tar de archivos en
+<code class="bg-zinc-800 px-1 rounded">/home/appuser/sw-panel-backups/</code>. Aquí puedes traerlos de vuelta.</p>
+
+{% if error %}<div class="mb-4 p-3 rounded border border-red-700 bg-red-900/30 text-red-200 text-sm">{{error}}</div>{% endif %}
+{% if message %}<div class="mb-4 p-3 rounded border border-emerald-700 bg-emerald-900/30 text-emerald-200 text-sm">{{message}}</div>{% endif %}
+
+{% if not backups %}
+<div class="border border-zinc-800 rounded-lg p-12 text-center text-zinc-400">
+  No hay backups todavía. Se generan automáticamente cuando borras un sitio.
+</div>
+{% else %}
+<div class="space-y-3">
+  {% for b in backups %}
+  <details class="border border-zinc-800 rounded-lg bg-zinc-900/40">
+    <summary class="cursor-pointer p-4 flex justify-between items-center">
+      <div>
+        <div class="font-medium"><span class="font-mono">{{ b.subdomain }}</span>.lab.example.com</div>
+        <div class="text-xs text-zinc-500 mt-1">
+          {{ b.ts }} ·
+          dump {{ '%.1f' % (b.dump_size / 1024 / 1024) }} MB ·
+          archivos {{ '%.1f' % (b.tar_size / 1024 / 1024) }} MB
+        </div>
+      </div>
+      <span class="text-xs text-emerald-400">Restaurar →</span>
+    </summary>
+    <form method="post" action="/restore" class="p-4 border-t border-zinc-800 grid grid-cols-1 md:grid-cols-3 gap-3"
+          data-loader-title="Restaurando desde backup…"
+          data-loader-interval="3500"
+          data-loader-steps='["Localizando backup","Creando docroot","Extrayendo archivos del tar.gz","Creando base de datos nueva","Importando dump SQL","Reescribiendo wp-config.php con nuevas credenciales","Search-replace de URL si cambió el subdominio","Configurando vhost nginx + SSL","Listo"]'>
+      <input type="hidden" name="source_subdomain" value="{{ b.subdomain }}">
+      <input type="hidden" name="source_ts" value="{{ b.ts }}">
+
+      <label class="text-sm md:col-span-2">
+        <span class="block mb-1 text-zinc-400">Restaurar como (subdominio destino)</span>
+        <div class="flex">
+          <input name="target_subdomain" required pattern="[a-z0-9][a-z0-9-]{0,30}[a-z0-9]?"
+                 value="{{ b.subdomain }}"
+                 class="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-l text-sm"
+                 oninput="checkSub(this)">
+          <span class="px-3 py-2 bg-zinc-800 border border-l-0 border-zinc-700 rounded-r text-sm text-zinc-400">.lab.example.com</span>
+        </div>
+        <div class="sub-check text-xs mt-1 min-h-[1rem]"></div>
+        <span class="block mt-1 text-xs text-zinc-500">
+          Si pones uno distinto al original, el panel hace search-replace en la BD para actualizar URLs internas.
+        </span>
+      </label>
+
+      <label class="text-sm">
+        <span class="block mb-1 text-zinc-400">Versión PHP</span>
+        <select name="php_version" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+          {% for v in php_versions %}
+            <option value="{{v}}" {% if v == default_php %}selected{% endif %}>{{v}}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="text-sm md:col-span-2">
+        <span class="block mb-1 text-zinc-400">Tipo</span>
+        <select name="site_type" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+          <option value="wordpress">WordPress (con BD)</option>
+          <option value="static">Estático / sin BD (solo extrae el tar)</option>
+        </select>
+      </label>
+
+      <div class="md:col-span-3 flex justify-end gap-2 pt-2">
+        <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm font-medium"
+                onclick="return confirm('¿Restaurar este backup como el subdominio elegido?');">
+          Restaurar ahora
+        </button>
+      </div>
+
+      <div class="md:col-span-3 text-xs text-zinc-500 mt-2">
+        <strong>Detalle del backup:</strong><br>
+        <code class="bg-zinc-950 px-1 rounded break-all">{{ b.dump }}</code><br>
+        <code class="bg-zinc-950 px-1 rounded break-all">{{ b.tar }}</code>
+      </div>
+    </form>
+  </details>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

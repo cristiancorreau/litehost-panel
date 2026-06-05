@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}WordPress nuevo — Admin{% endblock %}
+{% block content %}
+<a href="/sites/new" class="text-sm text-zinc-400 hover:text-white">← Tipos de sitio</a>
+<h1 class="text-2xl font-semibold mb-2 mt-2">WordPress nuevo</h1>
+<p class="text-sm text-zinc-500 mb-6">Descarga la última versión, crea BD y user MySQL, y completa la instalación con tus credenciales de admin.</p>
+
+<form method="post" action="/sites/new/wp"
+      class="grid grid-cols-1 md:grid-cols-2 gap-4 border border-zinc-800 rounded-lg p-6 bg-zinc-900/40"
+      data-loader-title="Creando WordPress…"
+      data-loader-interval="3500"
+      data-loader-steps='["Validando subdominio","Descargando última versión de WordPress","Creando base de datos MySQL","Generando wp-config.php","Configurando vhost nginx + SSL","Instalando WordPress (admin user, tema, etc.)","Listo"]'>
+  <label class="text-sm md:col-span-2">
+    <span class="block mb-1 text-zinc-400">Subdominio</span>
+    <div class="flex">
+      <input name="subdomain" required pattern="[a-z0-9][a-z0-9-]{0,30}[a-z0-9]?"
+             class="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-l text-sm"
+             placeholder="micliente"
+             oninput="checkSub(this)">
+      <span class="px-3 py-2 bg-zinc-800 border border-l-0 border-zinc-700 rounded-r text-sm text-zinc-400">.lab.example.com</span>
+    </div>
+    <div class="sub-check text-xs mt-1 min-h-[1rem]"></div>
+  </label>
+
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Versión PHP</span>
+    <select name="php_version" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+      {% for v in php_versions %}
+        <option value="{{v}}" {% if v == default_php %}selected{% endif %}>{{v}}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Título del sitio</span>
+    <input name="site_title" required placeholder="Mi nuevo sitio"
+           class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+  </label>
+
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Usuario admin</span>
+    <input name="admin_user" required value="admin"
+           class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+  </label>
+
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Email admin</span>
+    <input type="email" name="admin_email" required
+           class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+  </label>
+
+  <label class="text-sm md:col-span-2">
+    <span class="block mb-1 text-zinc-400">Password admin</span>
+    <input name="admin_password" type="text"
+           class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm font-mono">
+    <span class="block mt-1 text-xs text-zinc-500">Vacío = genero una password aleatoria de 16 caracteres y la muestro al final.</span>
+  </label>
+
+  <div class="md:col-span-2 flex justify-end gap-2">
+    <a href="/sites/new" class="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm">Cancelar</a>
+    <button class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm font-medium">Crear WordPress</button>
+  </div>
+</form>
+{% endblock %}

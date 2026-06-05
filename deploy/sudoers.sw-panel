@@ -1,0 +1,4 @@
+# /etc/sudoers.d/sw-panel   (modo 0440, propietario root:root)
+# Permite al usuario del servicio ejecutar SOLO el helper, sin contraseña.
+# Valídalo con:  sudo visudo -cf /etc/sudoers.d/sw-panel
+swpanel ALL=(root) NOPASSWD: /usr/local/bin/sw-panel-helper

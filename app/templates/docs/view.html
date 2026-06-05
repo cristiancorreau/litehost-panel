@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.title }} — Docs{% endblock %}
+{% block content %}
+<a href="/docs" class="text-sm text-zinc-400 hover:text-white">← Docs</a>
+<div class="flex items-center justify-between mt-2 mb-4">
+  <h1 class="text-3xl font-semibold">
+    {% if doc.is_pinned %}<span class="text-amber-400 text-xl mr-1">📌</span>{% endif %}
+    {{ doc.title }}
+  </h1>
+  <div class="flex gap-2">
+    <a href="/docs/{{ doc.slug }}/edit" class="text-sm px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded">Editar</a>
+  </div>
+</div>
+<div class="text-xs text-zinc-500 mb-6 font-mono">/docs/{{ doc.slug }} · actualizado {{ doc.updated_at.strftime('%Y-%m-%d %H:%M') }}</div>
+
+<article class="prose prose-invert max-w-none">
+  {{ doc.html | safe }}
+</article>
+
+{% if assets %}
+<div class="mt-12 border-t border-zinc-800 pt-6">
+  <h2 class="text-sm font-semibold text-zinc-400 mb-3 uppercase">Adjuntos ({{ assets|length }})</h2>
+  <ul class="space-y-1 text-sm">
+    {% for a in assets %}
+    <li class="flex items-center justify-between border border-zinc-800 rounded px-3 py-2 hover:bg-zinc-900/40">
+      <a href="{{ a.url }}" target="_blank" class="text-emerald-300 hover:underline font-mono text-xs">{{ a.filename }}</a>
+      <span class="text-xs text-zinc-500">{{ '%.0f' % (a.size / 1024) }} KB</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<style>
+.prose h1, .prose h2, .prose h3, .prose h4 { color: #f4f4f5; font-weight: 600; margin-top: 1.5em; margin-bottom: .5em; }
+.prose h1 { font-size: 1.875rem; border-bottom: 1px solid #27272a; padding-bottom: .3em; }
+.prose h2 { font-size: 1.5rem; border-bottom: 1px solid #27272a; padding-bottom: .25em; }
+.prose h3 { font-size: 1.25rem; }
+.prose p { color: #d4d4d8; margin: .75em 0; line-height: 1.7; }
+.prose ul, .prose ol { color: #d4d4d8; padding-left: 1.5em; margin: .75em 0; }
+.prose ul { list-style: disc; }
+.prose ol { list-style: decimal; }
+.prose li { margin: .25em 0; }
+.prose a { color: #34d399; text-decoration: underline; }
+.prose strong { color: #fafafa; }
+.prose code { background: #18181b; color: #fbbf24; padding: 1px 6px; border-radius: 4px; font-size: .9em; font-family: ui-monospace, SFMono-Regular, monospace; }
+.prose pre { background: #09090b; border: 1px solid #27272a; border-radius: 6px; padding: 12px 16px; overflow-x: auto; margin: 1em 0; }
+.prose pre code { background: transparent; color: #e4e4e7; padding: 0; font-size: .85em; }
+.prose blockquote { border-left: 3px solid #10b981; padding-left: 1em; color: #a1a1aa; margin: 1em 0; font-style: italic; }
+.prose table { border-collapse: collapse; margin: 1em 0; width: 100%; font-size: .9em; }
+.prose th, .prose td { border: 1px solid #3f3f46; padding: 6px 12px; text-align: left; }
+.prose th { background: #18181b; color: #fafafa; }
+.prose tr:nth-child(even) { background: #18181b/40; }
+.prose img { max-width: 100%; border-radius: 6px; margin: 1em 0; border: 1px solid #27272a; }
+.prose hr { border: 0; border-top: 1px solid #27272a; margin: 2em 0; }
+.codehilite { background: #09090b; border-radius: 6px; }
+/* Mermaid wrapper: fondo blanco para legibilidad */
+.mermaid { background: #fff; border-radius: 6px; padding: 12px; margin: 1em 0; }
+</style>
+
+<script type="module">
+  // Convertir bloques ```mermaid a contenedores que mermaid pueda renderizar
+  document.querySelectorAll('pre > code.language-mermaid').forEach(el => {
+    const pre = el.parentElement;
+    const div = document.createElement('div');
+    div.className = 'mermaid';
+    div.textContent = el.textContent;
+    pre.replaceWith(div);
+  });
+  if (document.querySelector('.mermaid')) {
+    const mermaid = (await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs")).default;
+    mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose",
+                         flowchart: { useMaxWidth: true, htmlLabels: true, curve: "basis" } });
+    await mermaid.run();
+  }
+</script>
+{% endblock %}

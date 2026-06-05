@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Nueva app Coolify — Admin{% endblock %}
+{% block content %}
+<a href="/sites/new" class="text-sm text-zinc-400 hover:text-white">← Tipos de sitio</a>
+<h1 class="text-2xl font-semibold mb-2 mt-2">Nueva app vía Coolify</h1>
+<p class="text-zinc-400 mb-6">Crea un Resource en Coolify desde un repo GitHub público (o conectado a tu GitHub App).
+El bloque nginx se genera automáticamente con un puerto host único.</p>
+
+{% if error %}<div class="mb-4 p-3 rounded border border-red-700 bg-red-900/30 text-red-200 text-sm">{{ error }}</div>{% endif %}
+
+<form method="post" action="/sites/new/coolify"
+      class="grid grid-cols-1 md:grid-cols-2 gap-4 border border-zinc-800 rounded-lg p-6 bg-zinc-900/40"
+      data-loader-title="Creando aplicación Coolify…"
+      data-loader-interval="2500"
+      data-loader-steps='["Validando subdominio","Conectando con Coolify API","Creando aplicación desde el repositorio","Asignando puerto host","Configurando vhost nginx + SSL","Coolify deploya en background — puedes ver el progreso en su UI"]'>
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Subdominio</span>
+    <div class="flex">
+      <input name="subdomain" required pattern="[a-z0-9][a-z0-9-]{0,30}[a-z0-9]?"
+             class="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-l text-sm"
+             oninput="checkSub(this)">
+      <span class="px-3 py-2 bg-zinc-800 border border-l-0 border-zinc-700 rounded-r text-sm text-zinc-400">.lab.example.com</span>
+    </div>
+    <div class="sub-check text-xs mt-1 min-h-[1rem]"></div>
+  </label>
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Project (Coolify)</span>
+    <select name="project_uuid" required class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+      {% for p in projects %}<option value="{{p.uuid}}">{{p.name}}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Server (Coolify)</span>
+    <select name="server_uuid" required class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+      {% for s in servers %}<option value="{{s.uuid}}">{{s.name}}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Build Pack</span>
+    <select name="build_pack" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+      <option value="dockerfile" selected>Dockerfile (recomendado)</option>
+      <option value="dockercompose">Docker Compose</option>
+      <option value="static">Static</option>
+      <option value="nixpacks">Nixpacks</option>
+    </select>
+  </label>
+  <label class="text-sm md:col-span-2">
+    <span class="block mb-1 text-zinc-400">Repositorio Git</span>
+    <input name="git_repository" required
+           placeholder="https://github.com/yourorg/mi-proyecto.git"
+           class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+  </label>
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Branch</span>
+    <input name="git_branch" value="master"
+           class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+  </label>
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Puerto interno del contenedor</span>
+    <input name="container_port" type="number" value="3000" required
+           class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+  </label>
+  <div class="md:col-span-2 flex justify-end">
+    <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm font-medium">Crear y deployar</button>
+  </div>
+</form>
+{% endblock %}

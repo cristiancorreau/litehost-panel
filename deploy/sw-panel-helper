@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+#
+# sw-panel-helper — ejecutor privilegiado del panel.
+# ---------------------------------------------------------------------------
+# El servicio del panel corre como un usuario SIN privilegios (p.ej. swpanel) y
+# NO puede tocar /var/www, /etc/nginx, php-fpm ni systemd directamente. En su
+# lugar invoca este helper vía:  sudo -n /usr/local/bin/sw-panel-helper <cmd> ...
+#
+# El acceso se concede con una regla de sudoers acotada SOLO a este binario
+# (ver deploy/sudoers.sw-panel). Mantén este script como root:root y modo 0750.
+#
+# ⚠ IMPLEMENTACIÓN DE REFERENCIA: revísala y audítala antes de usarla en
+#   producción. Cada subcomando se mapea 1:1 con una llamada del código Python
+#   (grep "sw-panel-helper" en app/). Los formatos de salida (líneas separadas
+#   por "|") son los que los parsers de app/services/*.py esperan.
+#
+# Endurecimiento aplicado:
+#   - set -euo pipefail
+#   - las operaciones de "ficheros web" se restringen a $WWW_ROOT
+#   - PATH fijo
+# ---------------------------------------------------------------------------
+set -euo pipefail
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# --- Configuración (ajústala a tu servidor) --------------------------------
+WWW_ROOT="${PANEL_WWW_ROOT:-/var/www}"
+NGINX_AVAILABLE="${PANEL_NGINX_AVAILABLE:-/etc/nginx/sites-available}"
+NGINX_ENABLED="${PANEL_NGINX_ENABLED:-/etc/nginx/sites-enabled}"
+BACKUPS_DIR="${PANEL_BACKUPS_DIR:-/home/appuser/sw-panel-backups}"
+WEB_OWNER="www-data:www-data"
+
+die() { echo "$1" >&2; exit "${2:-1}"; }
+
+# Asegura que un path quede DENTRO de WWW_ROOT (anti path-traversal).
+require_under_www() {
+  local p; p="$(realpath -m -- "$1")"
+  case "$p/" in
+    "$WWW_ROOT"/*) : ;;
+    *) die "path fuera de $WWW_ROOT: $1" ;;
+  esac
+}
+
+cmd="${1:-}"; shift || true
+
+case "$cmd" in
+  # ---------------- NGINX ----------------
+  write-vhost)        # <avail_path>   (contenido por stdin)
+    cat > "$1"; echo "ok" ;;
+  enable-vhost)       # <avail_path> <enabled_path>
+    ln -sf "$1" "$2"; echo "ok" ;;
+  remove-vhost)       # <fqdn>
+    rm -f "$NGINX_AVAILABLE/$1" "$NGINX_ENABLED/$1"; echo "ok" ;;
+  nginx-test)
+    nginx -t ;;
+  nginx-reload)
+    systemctl reload nginx ;;
+  list-vhosts)        # → filename|server_names|type|ssl|root|php_version
+    for f in "$NGINX_ENABLED"/*; do
+      [ -e "$f" ] || continue
+      local_file="$(basename "$f")"
+      names="$(grep -hoP 'server_name\s+\K[^;]+' "$f" 2>/dev/null | tr '\n' ' ' | tr -s ' ' || true)"
+      root="$(grep -hoP '^\s*root\s+\K[^;]+' "$f" 2>/dev/null | head -1 || true)"
+      ssl="no"; grep -qP 'listen\s+(\[::\]:)?443' "$f" 2>/dev/null && ssl="yes"
+      php=""; type="static"
+      if grep -qP 'fastcgi_pass' "$f" 2>/dev/null; then
+        type="php"; php="$(grep -hoP 'php\K[0-9]+\.[0-9]+' "$f" 2>/dev/null | head -1 || true)"
+      elif grep -qP 'proxy_pass' "$f" 2>/dev/null; then
+        type="proxy"
+      fi
+      echo "${local_file}|${names}|${type}|${ssl}|${root}|${php}"
+    done ;;
+
+  # ---------------- DOCROOT / FILESYSTEM (root) ----------------
+  make-docroot)       # <path> <owner>
+    require_under_www "$1"; mkdir -p "$1"; chown -R "$2" "$1"; echo "ok" ;;
+  remove-docroot)     # <path>
+    require_under_www "$1"; rm -rf "$1"; echo "ok" ;;
+  chown-r)            # <owner> <path>
+    require_under_www "$2"; chown -R "$1" "$2"; echo "ok" ;;
+  write-file)         # <path> [owner]   (stdin)
+    cat > "$1"; [ "${2:-}" != "" ] && chown "$2" "$1" || true; echo "ok" ;;
+  read-file)          # <path>   (lectura root, p.ej. landing index.html)
+    cat -- "$1" ;;
+
+  # ---------------- GESTOR DE ARCHIVOS (restringido a WWW_ROOT) ----------------
+  list-dir)           # <path> → name|kind|size|mtime|mode
+    require_under_www "$1"
+    for e in "$1"/* "$1"/.*; do
+      [ -e "$e" ] || continue
+      bn="$(basename "$e")"; [ "$bn" = "." ] || [ "$bn" = ".." ] && continue
+      kind="file"; [ -d "$e" ] && kind="dir"
+      sz="$(stat -c %s "$e" 2>/dev/null || echo 0)"
+      mt="$(stat -c %Y "$e" 2>/dev/null || echo 0)"
+      md="$(stat -c %A "$e" 2>/dev/null || echo '----------')"
+      echo "${bn}|${kind}|${sz}|${mt}|${md}"
+    done ;;
+  read-www-file)      # <path>
+    require_under_www "$1"; cat -- "$1" ;;
+  write-www-file|put-www-file)  # <path>   (stdin)
+    require_under_www "$1"; cat > "$1"; chown "$WEB_OWNER" "$1"; echo "ok" ;;
+  mkdir-www)          # <path>
+    require_under_www "$1"; mkdir -p "$1"; chown "$WEB_OWNER" "$1"; echo "ok" ;;
+  rm-www)             # <path>
+    require_under_www "$1"; rm -rf -- "$1"; echo "ok" ;;
+  rename-www)         # <src> <dst>
+    require_under_www "$1"; require_under_www "$2"; mv -- "$1" "$2"; echo "ok" ;;
+  chmod-www)          # <path> <mode> <yes|no>
+    require_under_www "$1"; [ "$3" = "yes" ] && chmod -R "$2" "$1" || chmod "$2" "$1"; echo "ok" ;;
+  chown-www)          # <path> <owner> <yes|no>
+    require_under_www "$1"; [ "$3" = "yes" ] && chown -R "$2" "$1" || chown "$2" "$1"; echo "ok" ;;
+  stat-www)           # <path> → mode|user|group|user:group
+    require_under_www "$1"
+    stat -c '%A|%U|%G|%U:%G' -- "$1" ;;
+
+  # ---------------- MOVIMIENTOS A WWW ----------------
+  mv-into-www)        # <src> <dst>
+    require_under_www "$2"; mkdir -p "$(dirname "$2")"; mv -- "$1" "$2"; chown -R "$WEB_OWNER" "$2"; echo "ok" ;;
+  mv-from-tmp-into-www)  # <src> <dst>  (src en /tmp o home)
+    require_under_www "$2"; mkdir -p "$(dirname "$2")"; cp -a -- "$1" "$2"; chown -R "$WEB_OWNER" "$2"; echo "ok" ;;
+  mv-contents-into-www)  # <src_dir> <docroot>
+    require_under_www "$2"; mkdir -p "$2"; shopt -s dotglob; mv -- "$1"/* "$2"/ 2>/dev/null || true; shopt -u dotglob
+    chown -R "$WEB_OWNER" "$2"; echo "ok" ;;
+  unzip-into-www)     # <zip> <docroot>
+    require_under_www "$2"; mkdir -p "$2"; unzip -o -- "$1" -d "$2" >/dev/null; chown -R "$WEB_OWNER" "$2"; echo "ok" ;;
+  tar-extract-into-www)  # <tar.gz> <docroot>
+    require_under_www "$2"; mkdir -p "$2"; tar xzf "$1" -C "$2"; chown -R "$WEB_OWNER" "$2"; echo "ok" ;;
+
+  # ---------------- BACKUPS ----------------
+  tar-backup)         # <docroot> <dest.tar.gz>
+    mkdir -p "$(dirname "$2")"; tar czf "$2" -C "$(dirname "$1")" "$(basename "$1")"; echo "ok" ;;
+  mysqldump)          # <db> <dest.sql>
+    mkdir -p "$(dirname "$2")"; mysqldump --single-transaction "$1" > "$2"; echo "ok" ;;
+  mysql-import)       # <db> <dump.sql>
+    mysql "$1" < "$2"; echo "ok" ;;
+  list-backups)       # → subdomain|filename|size|mtime
+    for d in "$BACKUPS_DIR"/*/; do
+      [ -d "$d" ] || continue
+      sub="$(basename "$d")"
+      for f in "$d"*; do
+        [ -f "$f" ] || continue
+        echo "${sub}|$(basename "$f")|$(stat -c %s "$f")|$(stat -c %Y "$f")"
+      done
+    done ;;
+
+  # ---------------- SERVICIOS / PHP ----------------
+  service-is-active)  # <svc>
+    systemctl is-active "$1" || true ;;
+  service-action)     # <svc> <start|stop|restart|reload>
+    systemctl "$2" "$1" ;;
+  set-php-version)    # <fqdn> <version>  → reescribe el socket fastcgi del vhost
+    vh="$NGINX_AVAILABLE/$1"
+    [ -f "$vh" ] || die "vhost no existe: $1"
+    sed -i -E "s#php[0-9]+\.[0-9]+-fpm\.sock#php$2-fpm.sock#g" "$vh"
+    nginx -t && systemctl reload nginx; echo "ok" ;;
+  fpm-config-get)     # <ver> → key=value (del pool www)
+    pool="/etc/php/$1/fpm/pool.d/www.conf"
+    grep -E '^\s*(pm|pm\.|memory_limit|max_|upload_|post_)' "$pool" 2>/dev/null | sed 's/^[[:space:]]*//' || true ;;
+  fpm-config-set)     # <ver> <key> <value>
+    pool="/etc/php/$1/fpm/pool.d/www.conf"
+    if grep -qE "^\s*;?\s*$2\s*=" "$pool"; then
+      sed -i -E "s#^\s*;?\s*$2\s*=.*#$2 = $3#" "$pool"
+    else
+      echo "$2 = $3" >> "$pool"
+    fi
+    systemctl reload "php$1-fpm"; echo "ok" ;;
+  phpinfo)            # <ver>
+    "php$1" -i 2>/dev/null || php -i ;;
+  tail-log)           # <kind> [fqdn] <lines>
+    kind="$1"; shift
+    if [ "$#" -ge 2 ]; then fqdn="$1"; lines="$2"; else fqdn=""; lines="$1"; fi
+    case "$kind" in
+      nginx-access) f="/var/log/nginx/${fqdn:+${fqdn}.}access.log" ;;
+      nginx-error)  f="/var/log/nginx/${fqdn:+${fqdn}.}error.log" ;;
+      *) f="/var/log/nginx/error.log" ;;
+    esac
+    [ -f "$f" ] && tail -n "$lines" "$f" || echo "(sin log: $f)" ;;
+
+  # ---------------- WP-CLI ----------------
+  wp-cli)             # <docroot> <args...>
+    require_under_www "$1"; docroot="$1"; shift
+    sudo -u "${WEB_OWNER%%:*}" -- wp --path="$docroot" "$@" ;;
+
+  # ---------------- UTILIDADES ----------------
+  disk-usage)         # <path...> → path|bytes
+    for p in "$@"; do
+      b="$(du -sb "$p" 2>/dev/null | cut -f1 || echo 0)"
+      echo "${p}|${b:-0}"
+    done ;;
+  list-upload-dir)    # <dir> → MISSING | name|size  (solo /tmp o home)
+    d="$1"
+    case "$d" in /tmp|/tmp/*|"$HOME"|"$HOME"/*) : ;; *) die "directorio no permitido" ;; esac
+    [ -d "$d" ] || { echo "MISSING"; exit 0; }
+    for f in "$d"/*; do [ -f "$f" ] && echo "$(basename "$f")|$(stat -c %s "$f")"; done ;;
+
+  *)
+    die "subcomando desconocido: $cmd" 2 ;;
+esac

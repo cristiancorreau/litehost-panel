@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} — Archivos{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+  <div class="text-sm text-zinc-400 font-mono break-all">
+    <a href="/files?path={{ parent_rel|urlencode }}" class="hover:text-white">← {{ parent_rel or '/var/www' }}</a>
+  </div>
+  <div class="flex gap-2">
+    <a href="/files/download?path={{ rel|urlencode }}"
+       class="px-3 py-1.5 text-sm bg-zinc-700 hover:bg-zinc-600 rounded">⬇ Descargar</a>
+  </div>
+</div>
+
+<div class="border border-zinc-800 rounded-lg overflow-hidden mb-4">
+  <div class="px-4 py-3 bg-zinc-900 flex items-center justify-between">
+    <div>
+      <div class="font-mono text-sm">{{ name }}</div>
+      <div class="text-xs text-zinc-500">{{ full }} · {% if size >= 1048576 %}{{ '%.1f' % (size/1048576) }} MB{% elif size >= 1024 %}{{ '%.0f' % (size/1024) }} KB{% else %}{{ size }} B{% endif %}</div>
+    </div>
+  </div>
+
+  {% if is_image %}
+    <div class="p-4 bg-zinc-950 flex items-center justify-center">
+      <img src="/files/raw?path={{ rel|urlencode }}" alt="{{ name }}" class="max-w-full max-h-[70vh] object-contain">
+    </div>
+  {% elif is_text %}
+    <form method="post" action="/files/save" id="save-form">
+      <input type="hidden" name="path" value="{{ rel }}">
+      <textarea name="content" id="raw-content" class="hidden">{{ content }}</textarea>
+      <div id="monaco-host" style="height: 70vh; width: 100%;"></div>
+      <div class="px-4 py-3 bg-zinc-900 border-t border-zinc-800 flex justify-between items-center flex-wrap gap-2">
+        <span class="text-xs text-zinc-500">
+          Monaco Editor (motor de VSCode). Lenguaje detectado: <span id="lang-detected" class="font-mono text-zinc-300">—</span>.
+          Atajos: <code class="bg-zinc-800 px-1 rounded">⌘/Ctrl+S</code> guardar ·
+          <code class="bg-zinc-800 px-1 rounded">⌘/Ctrl+F</code> buscar.
+        </span>
+        <div class="flex gap-2">
+          <a href="/files?path={{ parent_rel|urlencode }}"
+             class="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm">Cancelar</a>
+          <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm font-medium">Guardar</button>
+        </div>
+      </div>
+    </form>
+
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/loader.js"></script>
+    <script>
+      const EXT_LANG = {
+        '.html': 'html', '.htm': 'html',
+        '.css': 'css', '.scss': 'scss', '.less': 'less',
+        '.js': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
+        '.ts': 'typescript', '.tsx': 'typescript', '.jsx': 'javascript',
+        '.json': 'json', '.jsonc': 'json',
+        '.php': 'php', '.phtml': 'php',
+        '.py': 'python', '.rb': 'ruby', '.go': 'go', '.rs': 'rust',
+        '.sh': 'shell', '.bash': 'shell',
+        '.md': 'markdown', '.markdown': 'markdown',
+        '.txt': 'plaintext', '.log': 'plaintext',
+        '.xml': 'xml', '.svg': 'xml',
+        '.yml': 'yaml', '.yaml': 'yaml',
+        '.toml': 'ini', '.ini': 'ini', '.env': 'shell', '.conf': 'ini',
+        '.sql': 'sql',
+        '.csv': 'plaintext', '.tsv': 'plaintext',
+        '.vue': 'html',
+      };
+      const ext = "{{ ext }}".toLowerCase();
+      const lang = EXT_LANG[ext] || 'plaintext';
+      document.getElementById('lang-detected').textContent = lang;
+
+      require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs' } });
+      require(['vs/editor/editor.main'], function () {
+        const raw = document.getElementById('raw-content');
+        const editor = monaco.editor.create(document.getElementById('monaco-host'), {
+          value: raw.value,
+          language: lang,
+          theme: 'vs-dark',
+          automaticLayout: true,
+          fontSize: 13,
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace',
+          minimap: { enabled: true },
+          scrollBeyondLastLine: false,
+          tabSize: 2,
+          wordWrap: 'on',
+          mouseWheelZoom: true,
+        });
+        // Sincronizar valor al textarea oculto antes del submit
+        document.getElementById('save-form').addEventListener('submit', () => {
+          raw.value = editor.getValue();
+        });
+        // Ctrl+S guarda
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+          raw.value = editor.getValue();
+          document.getElementById('save-form').submit();
+        });
+      });
+    </script>
+  {% else %}
+    <div class="p-8 text-center text-zinc-400 text-sm">
+      Vista previa no disponible para este tipo de archivo.<br>
+      <a href="/files/download?path={{ rel|urlencode }}" class="text-emerald-400 hover:underline mt-3 inline-block">Descargar para verlo</a>
+    </div>
+  {% endif %}
+</div>
+
+{% if error %}<div class="p-3 rounded border border-red-700 bg-red-900/30 text-red-200 text-sm">{{error}}</div>{% endif %}
+{% endblock %}

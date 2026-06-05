@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Logs nginx — Admin{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Logs de nginx</h1>
+
+<form method="get" action="/logs" class="flex flex-wrap gap-3 mb-4 items-end">
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Tipo</span>
+    <select name="kind" class="px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+      <option value="nginx-error" {% if kind=='nginx-error' %}selected{% endif %}>error</option>
+      <option value="nginx-access" {% if kind=='nginx-access' %}selected{% endif %}>access</option>
+    </select>
+  </label>
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Filtrar por dominio (opcional)</span>
+    <input name="fqdn" value="{{fqdn or ''}}" placeholder="ej: aln.lab.example.com"
+           class="px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm w-64">
+  </label>
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Líneas</span>
+    <input type="number" name="lines" value="{{lines}}" min="10" max="1000"
+           class="px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm w-24">
+  </label>
+  <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm font-medium">Cargar</button>
+  <button type="button" onclick="location.reload()" class="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm">⟳ refrescar</button>
+</form>
+
+<pre class="bg-zinc-950 border border-zinc-800 rounded p-4 text-xs overflow-x-auto max-h-[70vh] overflow-y-auto whitespace-pre-wrap break-all">{{ content or '(sin datos — ajusta filtro)' }}</pre>
+{% endblock %}

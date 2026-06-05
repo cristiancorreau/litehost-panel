@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Mapear servicio Coolify — Admin{% endblock %}
+{% block content %}
+<a href="/sites/new" class="text-sm text-zinc-400 hover:text-white">← Tipos de sitio</a>
+<h1 class="text-2xl font-semibold mb-2 mt-2">Mapear servicio Coolify a un subdominio</h1>
+<p class="text-zinc-400 mb-4 text-sm">
+  Para servicios creados desde Coolify (Supabase, n8n, Plausible, etc. — sin repositorio Git).
+  El panel sólo escribe el vhost nginx hacia un puerto host expuesto por el service en Coolify.
+  No crea ni borra el service.
+</p>
+
+<div class="mb-6 p-4 border border-amber-700/50 bg-amber-900/20 text-amber-200 text-sm rounded">
+  <strong>Antes de continuar:</strong> el service debe exponer al host el puerto del componente
+  que quieres publicar. En el <code>docker_compose_raw</code> del service en Coolify, agrega
+  bajo el container correspondiente:
+  <pre class="mt-2 p-2 bg-zinc-950 text-amber-100 text-xs rounded font-mono">    ports:
+      - '127.0.0.1:&lt;HOST_PORT&gt;:&lt;CONTAINER_PORT&gt;'</pre>
+  Recomendado: usa puertos del rango {{ default_host_port }}–8200 reservado por el panel.
+  Después haz <em>Restart</em> del service desde Coolify para aplicar el mapping.
+</div>
+
+{% if error %}<div class="mb-4 p-3 rounded border border-red-700 bg-red-900/30 text-red-200 text-sm">{{ error }}</div>{% endif %}
+
+<form method="post" action="/sites/new/coolify-service"
+      class="grid grid-cols-1 md:grid-cols-2 gap-4 border border-zinc-800 rounded-lg p-6 bg-zinc-900/40"
+      data-loader-title="Creando vhost para servicio Coolify…"
+      data-loader-steps='["Validando subdominio","Consultando Coolify","Configurando vhost nginx + SSL","Recargando nginx"]'>
+
+  <label class="text-sm md:col-span-2">
+    <span class="block mb-1 text-zinc-400">Subdominio</span>
+    <div class="flex">
+      <input name="subdomain" required pattern="[a-z0-9][a-z0-9-]{0,30}[a-z0-9]?"
+             class="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-l text-sm"
+             oninput="checkSub(this)">
+      <span class="px-3 py-2 bg-zinc-800 border border-l-0 border-zinc-700 rounded-r text-sm text-zinc-400">.lab.example.com</span>
+    </div>
+    <div class="sub-check text-xs mt-1 min-h-[1rem]"></div>
+  </label>
+
+  <label class="text-sm md:col-span-2">
+    <span class="block mb-1 text-zinc-400">Service en Coolify</span>
+    <select name="service_uuid" id="service-select" required
+            class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+      <option value="">— elige un service —</option>
+      {% for s in services %}
+        <option value="{{ s.uuid }}"
+                data-apps='{{ s.apps | tojson }}'>
+          {{ s.name }} <span>· {{ s.type }}</span> <span>· {{ s.status }}</span>
+        </option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label class="text-sm md:col-span-2">
+    <span class="block mb-1 text-zinc-400">Sub-aplicación target (opcional, sólo informativo)</span>
+    <select name="service_app_name" id="app-select"
+            class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+      <option value="">— ninguna / no aplica —</option>
+    </select>
+    <div class="text-xs text-zinc-500 mt-1" id="app-hint"></div>
+  </label>
+
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Puerto host (publicado por Coolify)</span>
+    <input name="host_port" type="number" value="{{ default_host_port }}" required min="1024" max="65535"
+           class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+    <div class="text-xs text-zinc-500 mt-1">Ej. 8101 — debe matchear el <code>ports:</code> del compose</div>
+  </label>
+
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Puerto interno del contenedor</span>
+    <input name="container_port" type="number" value="8000" required min="1" max="65535"
+           class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+    <div class="text-xs text-zinc-500 mt-1">Ej. 8000 (kong de Supabase)</div>
+  </label>
+
+  <label class="text-sm md:col-span-2">
+    <span class="block mb-1 text-zinc-400">Nombre legible (opcional)</span>
+    <input name="display_name" placeholder="ej. Supabase Studio"
+           class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+  </label>
+
+  <div class="md:col-span-2 flex justify-end gap-2">
+    <a href="/sites/new" class="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm">Cancelar</a>
+    <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm font-medium">Crear vhost</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const sel = document.getElementById('service-select');
+  const appSel = document.getElementById('app-select');
+  const hint = document.getElementById('app-hint');
+  sel.addEventListener('change', () => {
+    const opt = sel.options[sel.selectedIndex];
+    appSel.innerHTML = '<option value="">— ninguna —</option>';
+    let apps = [];
+    try { apps = JSON.parse(opt.dataset.apps || '[]'); } catch (e) {}
+    apps.forEach(a => {
+      const o = document.createElement('option');
+      o.value = a.name || '';
+      o.textContent = (a.name || '?') + (a.image ? ' · ' + a.image : '');
+      appSel.appendChild(o);
+    });
+    hint.textContent = apps.length
+      ? `${apps.length} sub-app(s) detectada(s) en este service.`
+      : 'Sin sub-apps reportadas por la API; rellena puertos manualmente.';
+  });
+})();
+</script>
+{% endblock %}

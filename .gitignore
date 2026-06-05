@@ -1,0 +1,28 @@
+# Entorno y secretos
+.env
+panel.env
+*.env.local
+venv/
+.venv/
+ENV/
+
+# Datos de la app
+*.sqlite
+*.sqlite3
+*.db
+data/
+uploads/
+docs-assets/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+*.swp

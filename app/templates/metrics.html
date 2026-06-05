@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Métricas — Admin{% endblock %}
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+<div class="flex items-center justify-between mb-2">
+  <h1 class="text-2xl font-semibold">Métricas del servidor</h1>
+  <div class="text-xs text-zinc-500" id="m-status">cargando…</div>
+</div>
+<p class="text-sm text-zinc-500 mb-6">Datos en tiempo real del host. Actualización cada 2 s. Los gráficos guardan los últimos ~5 min en memoria del navegador.</p>
+
+<!-- Tarjetas de resumen -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+  <div class="border border-zinc-800 rounded-lg p-4">
+    <div class="text-xs text-zinc-500 uppercase">CPU</div>
+    <div class="text-2xl font-bold mt-1" id="card-cpu">—</div>
+    <div class="text-xs text-zinc-400 mt-1" id="card-cpu-load">load —</div>
+  </div>
+  <div class="border border-zinc-800 rounded-lg p-4">
+    <div class="text-xs text-zinc-500 uppercase">Memoria</div>
+    <div class="text-2xl font-bold mt-1" id="card-mem">—</div>
+    <div class="text-xs text-zinc-400 mt-1" id="card-mem-detail">— / —</div>
+  </div>
+  <div class="border border-zinc-800 rounded-lg p-4">
+    <div class="text-xs text-zinc-500 uppercase">Swap</div>
+    <div class="text-2xl font-bold mt-1" id="card-swap">—</div>
+    <div class="text-xs text-zinc-400 mt-1" id="card-swap-detail">— / —</div>
+  </div>
+  <div class="border border-zinc-800 rounded-lg p-4">
+    <div class="text-xs text-zinc-500 uppercase">Uptime</div>
+    <div class="text-2xl font-bold mt-1" id="card-uptime">—</div>
+    <div class="text-xs text-zinc-400 mt-1" id="card-cpus">—</div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+  <div class="border border-zinc-800 rounded-lg p-4">
+    <div class="text-xs text-zinc-500 uppercase mb-2">CPU %</div>
+    <div class="relative h-48"><canvas id="chart-cpu"></canvas></div>
+  </div>
+  <div class="border border-zinc-800 rounded-lg p-4">
+    <div class="text-xs text-zinc-500 uppercase mb-2">Memoria %</div>
+    <div class="relative h-48"><canvas id="chart-mem"></canvas></div>
+  </div>
+  <div class="border border-zinc-800 rounded-lg p-4">
+    <div class="text-xs text-zinc-500 uppercase mb-2">Disco I/O (KB/s)</div>
+    <div class="relative h-48"><canvas id="chart-disk-io"></canvas></div>
+  </div>
+  <div class="border border-zinc-800 rounded-lg p-4">
+    <div class="text-xs text-zinc-500 uppercase mb-2">Red (KB/s)</div>
+    <div class="relative h-48"><canvas id="chart-net-io"></canvas></div>
+  </div>
+</div>
+
+<!-- Discos montados -->
+<div class="border border-zinc-800 rounded-lg p-4 mb-6">
+  <div class="text-xs text-zinc-500 uppercase mb-3">Discos montados</div>
+  <div id="disks-list" class="space-y-2"></div>
+</div>
+
+<!-- Top procesos -->
+<div class="border border-zinc-800 rounded-lg overflow-hidden">
+  <div class="text-xs text-zinc-500 uppercase p-4 pb-2">Top procesos por CPU</div>
+  <table class="w-full text-sm">
+    <thead class="bg-zinc-900 text-zinc-400 text-left">
+      <tr>
+        <th class="px-4 py-2">PID</th>
+        <th class="px-4 py-2">User</th>
+        <th class="px-4 py-2">Comando</th>
+        <th class="px-4 py-2 text-right">CPU %</th>
+        <th class="px-4 py-2 text-right">Mem %</th>
+      </tr>
+    </thead>
+    <tbody id="procs-tbody" class="divide-y divide-zinc-800 font-mono text-xs"></tbody>
+  </table>
+</div>
+
+<script>
+const MAX_POINTS = 150;  // ~5 min con polling 2s
+
+function fmtBytes(b){
+  if (!b || b < 0) return '—';
+  const u = ['B','KB','MB','GB','TB'];
+  let i = 0;
+  while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+  return `${b.toFixed(b < 10 ? 1 : 0)} ${u[i]}`;
+}
+function fmtUptime(s){
+  if (!s) return '—';
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d) return `${d}d ${h}h`;
+  if (h) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+const baseOpts = (yLabel, suggestedMax) => ({
+  type: 'line',
+  data: { labels: [], datasets: [] },
+  options: {
+    animation: false,
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'nearest', intersect: false },
+    plugins: { legend: { labels: { color: '#a1a1aa', font: { size: 11 } } } },
+    scales: {
+      x: { display: false },
+      y: { ticks: { color: '#71717a' }, grid: { color: '#27272a' },
+           beginAtZero: true, suggestedMax: suggestedMax,
+           title: { display: !!yLabel, text: yLabel, color: '#71717a' } },
+    },
+  },
+});
+
+const ds = (label, color) => ({
+  label, data: [], borderColor: color, backgroundColor: color + '33',
+  borderWidth: 2, tension: 0.25, pointRadius: 0, fill: true,
+});
+
+const charts = {
+  cpu: new Chart(document.getElementById('chart-cpu'), {
+    ...baseOpts('%', 100),
+    data: { labels: [], datasets: [ds('CPU total', '#10b981')] },
+  }),
+  mem: new Chart(document.getElementById('chart-mem'), {
+    ...baseOpts('%', 100),
+    data: { labels: [], datasets: [ds('RAM', '#3b82f6'), ds('Swap', '#a78bfa')] },
+  }),
+  diskIo: new Chart(document.getElementById('chart-disk-io'), {
+    ...baseOpts('KB/s'),
+    data: { labels: [], datasets: [ds('Read', '#f59e0b'), ds('Write', '#ef4444')] },
+  }),
+  netIo: new Chart(document.getElementById('chart-net-io'), {
+    ...baseOpts('KB/s'),
+    data: { labels: [], datasets: [ds('Recv', '#06b6d4'), ds('Sent', '#f472b6')] },
+  }),
+};
+
+function pushPoint(chart, label, values){
+  chart.data.labels.push(label);
+  values.forEach((v, i) => chart.data.datasets[i].data.push(v));
+  if (chart.data.labels.length > MAX_POINTS){
+    chart.data.labels.shift();
+    chart.data.datasets.forEach(d => d.data.shift());
+  }
+  chart.update('none');
+}
+
+async function tick(){
+  try {
+    const r = await fetch('/api/metrics', { credentials: 'same-origin' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const m = await r.json();
+    const t = new Date(m.ts * 1000);
+    const label = t.toLocaleTimeString();
+
+    document.getElementById('m-status').textContent = 'última: ' + label;
+    document.getElementById('card-cpu').textContent = m.cpu.percent.toFixed(0) + '%';
+    document.getElementById('card-cpu-load').textContent = `load ${m.cpu.load.map(x=>x.toFixed(2)).join(' / ')}`;
+    document.getElementById('card-cpus').textContent = m.cpu.count + ' cores';
+    document.getElementById('card-mem').textContent = m.mem.percent.toFixed(0) + '%';
+    document.getElementById('card-mem-detail').textContent = `${fmtBytes(m.mem.used)} / ${fmtBytes(m.mem.total)}`;
+    document.getElementById('card-swap').textContent = m.swap.percent.toFixed(0) + '%';
+    document.getElementById('card-swap-detail').textContent = m.swap.total ? `${fmtBytes(m.swap.used)} / ${fmtBytes(m.swap.total)}` : 'no swap';
+    document.getElementById('card-uptime').textContent = fmtUptime(m.uptime_seconds);
+
+    pushPoint(charts.cpu, label, [m.cpu.percent]);
+    pushPoint(charts.mem, label, [m.mem.percent, m.swap.percent]);
+    pushPoint(charts.diskIo, label, [m.io.disk_read_bps / 1024, m.io.disk_write_bps / 1024]);
+    pushPoint(charts.netIo, label, [m.io.net_recv_bps / 1024, m.io.net_sent_bps / 1024]);
+
+    // discos
+    const disksEl = document.getElementById('disks-list');
+    disksEl.innerHTML = m.disks.map(d => `
+      <div>
+        <div class="flex items-center justify-between text-sm mb-1">
+          <span><span class="font-mono text-xs text-zinc-400">${d.mount}</span>
+                <span class="text-zinc-500 text-xs ml-2">(${d.fstype})</span></span>
+          <span class="text-zinc-300">${fmtBytes(d.used)} / ${fmtBytes(d.total)}
+            <span class="ml-2 ${d.percent > 85 ? 'text-red-400' : d.percent > 70 ? 'text-amber-400' : 'text-zinc-400'}">${d.percent.toFixed(0)}%</span></span>
+        </div>
+        <div class="h-1.5 bg-zinc-800 rounded overflow-hidden">
+          <div class="h-full ${d.percent > 85 ? 'bg-red-500' : d.percent > 70 ? 'bg-amber-500' : 'bg-emerald-500'}"
+               style="width: ${d.percent}%"></div>
+        </div>
+      </div>
+    `).join('');
+
+    // top procesos
+    const tbody = document.getElementById('procs-tbody');
+    tbody.innerHTML = m.top_procs.map(p => `
+      <tr class="hover:bg-zinc-900/40">
+        <td class="px-4 py-1.5 text-zinc-500">${p.pid}</td>
+        <td class="px-4 py-1.5">${p.user}</td>
+        <td class="px-4 py-1.5">${p.name}</td>
+        <td class="px-4 py-1.5 text-right ${p.cpu > 50 ? 'text-amber-400' : ''}">${p.cpu.toFixed(1)}</td>
+        <td class="px-4 py-1.5 text-right">${p.mem.toFixed(1)}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    document.getElementById('m-status').textContent = 'error: ' + e.message;
+  }
+}
+
+tick();
+setInterval(tick, 2000);
+</script>
+{% endblock %}

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Server Panel{% endblock %}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/htmx.org@2.0.3"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+</style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen">
+<header class="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur sticky top-0 z-10">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <a href="/" class="text-lg font-semibold tracking-tight">Server Panel</a>
+    <nav class="flex gap-4 text-sm text-zinc-400">
+      <a href="/" class="hover:text-white">Sitios</a>
+      <a href="/sites/new" class="hover:text-white">+ Nuevo</a>
+      <a href="/services" class="hover:text-white">Servicios</a>
+      <a href="/metrics" class="hover:text-white">Métricas</a>
+      <a href="/logs" class="hover:text-white">Logs</a>
+      <a href="/restore" class="hover:text-white">Restaurar</a>
+      <a href="/files" class="hover:text-white">Archivos</a>
+      <a href="/docs" class="hover:text-white">Docs</a>
+      <a href="https://vscode.lab.example.com" target="_blank" class="hover:text-white">VSCode ↗</a>
+      <a href="https://coolify.lab.example.com" target="_blank" class="hover:text-white">Coolify ↗</a>
+    </nav>
+  </div>
+</header>
+<main class="max-w-6xl mx-auto px-6 py-8">
+{% if error %}<div class="mb-4 p-3 rounded border border-red-700 bg-red-900/30 text-red-200 text-sm">{{ error }}</div>{% endif %}
+{% block content %}{% endblock %}
+</main>
+
+<!-- Loading overlay para operaciones largas -->
+<div id="sw-loader" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur items-center justify-center p-6">
+  <div class="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-2xl">
+    <div class="flex items-center gap-3 mb-4">
+      <div id="sw-loader-spinner" class="w-8 h-8 rounded-full border-2 border-zinc-700 border-t-emerald-500 animate-spin"></div>
+      <div id="sw-loader-success-icon" class="hidden w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <div id="sw-loader-error-icon" class="hidden w-8 h-8 rounded-full bg-red-600 flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </div>
+      <h3 id="sw-loader-title" class="text-lg font-semibold">Procesando…</h3>
+    </div>
+    <p id="sw-loader-subtitle" class="text-sm text-zinc-400 mb-4">Esto puede tardar varios segundos. No cierres esta ventana.</p>
+    <ol id="sw-loader-steps" class="space-y-2 text-sm"></ol>
+    <p id="sw-loader-elapsed" class="text-xs text-zinc-500 mt-4 font-mono"></p>
+    <div id="sw-loader-actions" class="hidden mt-5 flex gap-2 justify-end">
+      <button id="sw-loader-stay" type="button" class="px-3 py-2 text-sm bg-zinc-700 hover:bg-zinc-600 rounded">Cerrar</button>
+      <button id="sw-loader-go" type="button" class="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 rounded font-medium">Ver detalle →</button>
+    </div>
+  </div>
+</div>
+<script>
+// ---------- Loader overlay con flujo async ----------
+const __sw = {
+  stepTimer: null,
+  tickTimer: null,
+  items: [],
+  idx: 0,
+  start: 0,
+  destination: null,
+};
+
+function __swSetMarkComplete(li){
+  li.classList.remove('text-zinc-500','text-zinc-100');
+  li.classList.add('text-emerald-300');
+  const m = li.querySelector('.sw-mark');
+  if (m){
+    m.classList.remove('border-zinc-700','border-emerald-400','animate-pulse');
+    m.classList.add('bg-emerald-600','border-emerald-500');
+    m.innerHTML = '<svg class="w-3 h-3 m-0.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
+  }
+}
+
+function __swMarkActive(li){
+  li.classList.remove('text-zinc-500');
+  li.classList.add('text-zinc-100');
+  const m = li.querySelector('.sw-mark');
+  if (m) m.classList.add('border-emerald-400','animate-pulse');
+}
+
+function swInitLoader(title, subtitle, steps, intervalMs){
+  const ov = document.getElementById('sw-loader');
+  document.getElementById('sw-loader-title').textContent = title || 'Procesando…';
+  document.getElementById('sw-loader-subtitle').textContent = subtitle || 'Esto puede tardar varios segundos. No cierres esta ventana.';
+  document.getElementById('sw-loader-spinner').classList.remove('hidden');
+  document.getElementById('sw-loader-success-icon').classList.add('hidden');
+  document.getElementById('sw-loader-error-icon').classList.add('hidden');
+  document.getElementById('sw-loader-actions').classList.add('hidden');
+  const list = document.getElementById('sw-loader-steps');
+  list.innerHTML = '';
+  (steps || []).forEach((s) => {
+    const li = document.createElement('li');
+    li.className = 'flex items-start gap-2 text-zinc-500';
+    li.innerHTML = '<span class="sw-mark inline-block w-4 h-4 mt-0.5 rounded-full border border-zinc-700 flex-none"></span><span class="sw-text">' + s + '</span>';
+    list.appendChild(li);
+  });
+  ov.classList.remove('hidden');
+  ov.classList.add('flex');
+
+  __sw.items = Array.from(list.querySelectorAll('li'));
+  __sw.idx = 0;
+  __sw.start = Date.now();
+
+  // animación inicial: arrancar primer paso
+  if (__sw.items.length > 0){ __swMarkActive(__sw.items[0]); __sw.idx = 1; }
+  if (__sw.stepTimer) clearInterval(__sw.stepTimer);
+  __sw.stepTimer = setInterval(() => {
+    if (__sw.idx >= __sw.items.length) {
+      // Llegamos al último paso animado pero el backend aún no respondió.
+      // Cambiamos el subtítulo para dejar claro que sigue trabajando.
+      const sub = document.getElementById('sw-loader-subtitle');
+      sub.innerHTML = '<span class="text-amber-400">Procesando en el servidor…</span> el upload o la operación pueden tardar varios minutos. <strong>No cierres esta ventana hasta que aparezca el botón verde.</strong>';
+      return;
+    }
+    const prev = __sw.items[__sw.idx - 1];
+    if (prev) __swSetMarkComplete(prev);
+    if (__sw.idx < __sw.items.length){
+      __swMarkActive(__sw.items[__sw.idx]);
+      __sw.idx++;
+    }
+  }, intervalMs || 2500);
+
+  // cronómetro
+  if (__sw.tickTimer) clearInterval(__sw.tickTimer);
+  const elapsedEl = document.getElementById('sw-loader-elapsed');
+  __sw.tickTimer = setInterval(() => {
+    const s = Math.floor((Date.now() - __sw.start) / 1000);
+    elapsedEl.textContent = `${s}s transcurridos`;
+  }, 500);
+}
+
+function swLoaderFinish(success, destinationUrl, message){
+  if (__sw.stepTimer) { clearInterval(__sw.stepTimer); __sw.stepTimer = null; }
+  // Marcar TODOS los pasos restantes como completos (si éxito) o rojo en último (si error)
+  if (success){
+    __sw.items.forEach(li => __swSetMarkComplete(li));
+    document.getElementById('sw-loader-spinner').classList.add('hidden');
+    document.getElementById('sw-loader-success-icon').classList.remove('hidden');
+    document.getElementById('sw-loader-title').textContent = '¡Listo!';
+    document.getElementById('sw-loader-subtitle').textContent = message || 'La operación finalizó correctamente.';
+  } else {
+    // marcar como complete los anteriores; el actual (idx-1) en rojo
+    for (let i = 0; i < __sw.items.length; i++){
+      if (i < __sw.idx - 1) __swSetMarkComplete(__sw.items[i]);
+    }
+    const lastActive = __sw.items[Math.max(0, __sw.idx - 1)];
+    if (lastActive){
+      const m = lastActive.querySelector('.sw-mark');
+      if (m){
+        m.className = 'sw-mark inline-block w-4 h-4 mt-0.5 rounded-full bg-red-600 border border-red-500 flex-none';
+        m.innerHTML = '<svg class="w-3 h-3 m-0.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>';
+      }
+      lastActive.classList.remove('text-zinc-100');
+      lastActive.classList.add('text-red-300');
+    }
+    document.getElementById('sw-loader-spinner').classList.add('hidden');
+    document.getElementById('sw-loader-error-icon').classList.remove('hidden');
+    document.getElementById('sw-loader-title').textContent = 'Hubo un problema';
+    document.getElementById('sw-loader-subtitle').textContent = message || 'La operación falló. Revisa el detalle del sitio para ver el log.';
+  }
+  __sw.destination = destinationUrl;
+  const goBtn = document.getElementById('sw-loader-go');
+  goBtn.textContent = success ? 'Ver detalle →' : 'Ver el log →';
+  document.getElementById('sw-loader-actions').classList.remove('hidden');
+}
+
+document.getElementById('sw-loader-go').addEventListener('click', () => {
+  if (__sw.destination) window.location.href = __sw.destination;
+});
+document.getElementById('sw-loader-stay').addEventListener('click', () => {
+  if (__sw.tickTimer) { clearInterval(__sw.tickTimer); __sw.tickTimer = null; }
+  document.getElementById('sw-loader').classList.add('hidden');
+  document.getElementById('sw-loader').classList.remove('flex');
+});
+
+// Auto-bind: cualquier form con data-loader-steps usa fetch async + overlay
+document.addEventListener('submit', (e) => {
+  const form = e.target;
+  if (!(form instanceof HTMLFormElement)) return;
+  const stepsAttr = form.dataset.loaderSteps;
+  if (!stepsAttr) return;
+
+  e.preventDefault();
+  let steps;
+  try { steps = JSON.parse(stepsAttr); } catch { return form.submit(); }
+  const title = form.dataset.loaderTitle || 'Creando…';
+  const subtitle = form.dataset.loaderSubtitle || 'Esto puede tardar varios segundos. No cierres esta ventana.';
+  const interval = parseInt(form.dataset.loaderInterval || '2500', 10);
+  swInitLoader(title, subtitle, steps, interval);
+
+  const submitBtn = form.querySelector('button[type=submit], button:not([type])');
+  if (submitBtn) submitBtn.disabled = true;
+
+  const fd = new FormData(form);
+  const method = (form.method || 'POST').toUpperCase();
+
+  fetch(form.action, {
+    method,
+    body: fd,
+    redirect: 'follow',
+    credentials: 'same-origin',
+  }).then(async (res) => {
+    const finalUrl = res.url;
+    // Detectar error por query string
+    const u = new URL(finalUrl, window.location.origin);
+    const hasError = u.searchParams.has('error') || u.searchParams.has('delete_error');
+    const ok = res.ok && !hasError;
+    let message = null;
+    if (hasError){
+      message = u.searchParams.get('error') || u.searchParams.get('delete_error');
+    } else if (!res.ok){
+      message = `HTTP ${res.status}`;
+    }
+    swLoaderFinish(ok, finalUrl, message);
+  }).catch(err => {
+    swLoaderFinish(false, null, 'Error de red: ' + err.message);
+  });
+});
+
+const __subTimers = new WeakMap();
+function checkSub(input){
+  const target = input.closest('label').querySelector('.sub-check');
+  if (!target) return;
+  if (__subTimers.has(input)) clearTimeout(__subTimers.get(input));
+  if (!input.value) { target.innerHTML = ''; input.setCustomValidity(''); return; }
+  __subTimers.set(input, setTimeout(async () => {
+    try {
+      const r = await fetch('/api/check-subdomain?name=' + encodeURIComponent(input.value));
+      const d = await r.json();
+      if (d.available) {
+        target.innerHTML = '<span class="text-emerald-400">' + d.fqdn + ' disponible</span>';
+        input.setCustomValidity('');
+      } else {
+        target.innerHTML = '<span class="text-red-400">' + d.reason + '</span>';
+        input.setCustomValidity(d.reason);
+      }
+    } catch (_) {}
+  }, 300));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+# /etc/systemd/system/sw-panel.service
+# Ajusta User/Group y las rutas a tu instalación, luego:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now sw-panel
+[Unit]
+Description=Server Panel (FastAPI)
+After=network.target mysql.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=swpanel
+Group=swpanel
+WorkingDirectory=/opt/sw-panel
+EnvironmentFile=/etc/sw-panel/panel.env
+ExecStart=/opt/sw-panel/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 9080 --proxy-headers --forwarded-allow-ips '*'
+Restart=on-failure
+RestartSec=5
+# El panel corre sin privilegios; toda acción root pasa por sw-panel-helper (sudo).
+NoNewPrivileges=no
+ProtectSystem=full
+ProtectHome=read-only
+# Rutas que el panel necesita escribir (ajústalas a tu usuario del sistema):
+ReadWritePaths=/var/lib/sw-panel /home/appuser/sw-panel-backups /home/appuser/uploads /tmp
+
+[Install]
+WantedBy=multi-user.target

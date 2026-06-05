@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Restaurar Duplicator — Admin{% endblock %}
+{% block content %}
+<a href="/sites/new" class="text-sm text-zinc-400 hover:text-white">← Tipos de sitio</a>
+<h1 class="text-2xl font-semibold mb-2 mt-2">Restaurar desde Duplicator</h1>
+<p class="text-zinc-400 mb-6">Subo los archivos al docroot, creo BD vacía y configuro nginx. Después abres
+<code class="bg-zinc-800 px-1 rounded">https://&lt;tu-subdominio&gt;.lab.example.com/installer.php</code>
+y completas el wizard del propio Duplicator.</p>
+
+<form method="post" action="/sites/new/duplicator" enctype="multipart/form-data"
+      class="grid grid-cols-1 md:grid-cols-2 gap-4 border border-zinc-800 rounded-lg p-6 bg-zinc-900/40"
+      data-loader-title="Subiendo archivos del backup Duplicator…"
+      data-loader-subtitle="La subida puede tardar bastante según el tamaño del .daf. No cierres la ventana."
+      data-loader-interval="5000"
+      data-loader-steps='["Subiendo installer.php y archive.daf","Validando archivos","Creando docroot y moviendo archivos","Creando base de datos vacía","Configurando vhost nginx + SSL","Listo — abre /installer.php para completar el wizard"]'>
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Subdominio</span>
+    <div class="flex">
+      <input name="subdomain" required pattern="[a-z0-9][a-z0-9-]{0,30}[a-z0-9]?"
+             class="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-l text-sm"
+             oninput="checkSub(this)">
+      <span class="px-3 py-2 bg-zinc-800 border border-l-0 border-zinc-700 rounded-r text-sm text-zinc-400">.lab.example.com</span>
+    </div>
+    <div class="sub-check text-xs mt-1 min-h-[1rem]"></div>
+  </label>
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">PHP</span>
+    <select name="php_version" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+      {% for v in php_versions %}<option value="{{v}}" {% if v=='8.1' %}selected{% endif %}>{{v}}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="text-sm md:col-span-2">
+    <span class="block mb-1 text-zinc-400">installer.php</span>
+    <input type="file" name="installer" accept=".php" required
+           class="w-full text-sm file:mr-3 file:px-3 file:py-1.5 file:bg-zinc-700 file:text-zinc-100 file:border-0 file:rounded">
+  </label>
+  <label class="text-sm md:col-span-2">
+    <span class="block mb-1 text-zinc-400">archive.daf (o .zip)</span>
+    <input type="file" name="archive" accept=".daf,.zip" required
+           class="w-full text-sm file:mr-3 file:px-3 file:py-1.5 file:bg-zinc-700 file:text-zinc-100 file:border-0 file:rounded">
+    <span class="block mt-1 text-xs text-zinc-500">Hasta 25 GB. Para subidas grandes (varios GB) la barra de progreso del navegador puede tardar; no cierres la ventana.</span>
+  </label>
+  <div class="md:col-span-2 flex justify-end">
+    <button class="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded text-sm font-medium">Subir y preparar</button>
+  </div>
+</form>
+{% endblock %}

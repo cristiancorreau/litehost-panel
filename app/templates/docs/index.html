@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Docs — Admin{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold">Docs</h1>
+    <p class="text-sm text-zinc-500 mt-1">Documentación interna del laboratorio. Markdown + assets adjuntos.</p>
+  </div>
+  <a href="/docs/new" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-md text-sm font-medium">+ Nuevo doc</a>
+</div>
+
+{% if not docs %}
+<div class="border border-zinc-800 rounded-lg p-12 text-center text-zinc-400">
+  Aún no hay documentos. <a href="/docs/new" class="text-emerald-400 hover:underline">Crear el primero</a>.
+</div>
+{% else %}
+<div class="border border-zinc-800 rounded-lg overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-zinc-900 text-zinc-400 text-left text-xs">
+      <tr>
+        <th class="px-4 py-2"></th>
+        <th class="px-4 py-2">Título</th>
+        <th class="px-4 py-2">Slug</th>
+        <th class="px-4 py-2">Actualizado</th>
+        <th class="px-4 py-2 text-right"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-zinc-800">
+    {% for d in docs %}
+      <tr class="hover:bg-zinc-900/40">
+        <td class="px-4 py-2 w-6">
+          {% if d.is_pinned %}<span title="Fijado" class="text-amber-400">📌</span>{% endif %}
+        </td>
+        <td class="px-4 py-2 font-medium">
+          <a href="/docs/{{ d.slug }}" class="hover:text-emerald-300">{{ d.title }}</a>
+        </td>
+        <td class="px-4 py-2 font-mono text-xs text-zinc-500">{{ d.slug }}</td>
+        <td class="px-4 py-2 text-xs text-zinc-400">{{ d.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td class="px-4 py-2 text-right">
+          <a href="/docs/{{ d.slug }}/edit" class="text-xs px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded">editar</a>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

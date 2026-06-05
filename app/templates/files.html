@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block title %}Archivos — Admin{% endblock %}
+{% block content %}
+{% if message %}<div class="mb-4 p-3 rounded border border-emerald-700 bg-emerald-900/30 text-emerald-200 text-sm">{{message}}</div>{% endif %}
+
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+  <div class="text-sm text-zinc-400 font-mono break-all">
+    {% for b in breadcrumbs %}
+      <a href="/files?path={{ b.rel|urlencode }}" class="hover:text-white">{{ b.name }}</a>{% if not loop.last %}<span class="text-zinc-600 mx-1">/</span>{% endif %}
+    {% endfor %}
+  </div>
+  <div class="flex gap-2 flex-wrap">
+    {% if not is_root %}
+    <a href="/files?path={{ parent_rel|urlencode }}" class="px-3 py-1.5 text-sm bg-zinc-700 hover:bg-zinc-600 rounded">↑ subir</a>
+    {% endif %}
+    <button type="button" onclick="document.getElementById('mkdir-modal').classList.remove('hidden')"
+            class="px-3 py-1.5 text-sm bg-zinc-700 hover:bg-zinc-600 rounded">+ Carpeta</button>
+    <button type="button" onclick="document.getElementById('upload-modal').classList.remove('hidden')"
+            class="px-3 py-1.5 text-sm bg-emerald-600 hover:bg-emerald-500 rounded">⬆ Subir archivos</button>
+    <button type="button" onclick="document.getElementById('upload-zip-modal').classList.remove('hidden')"
+            class="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 rounded">⬆ Subir ZIP</button>
+  </div>
+</div>
+
+{% if not entries %}
+<div class="border border-zinc-800 rounded-lg p-12 text-center text-zinc-500">Carpeta vacía.</div>
+{% else %}
+<div class="overflow-hidden border border-zinc-800 rounded-lg">
+  <table class="w-full text-sm">
+    <thead class="bg-zinc-900 text-zinc-400 text-left text-xs">
+      <tr>
+        <th class="px-4 py-2">Nombre</th>
+        <th class="px-4 py-2">Tipo</th>
+        <th class="px-4 py-2 text-right">Tamaño</th>
+        <th class="px-4 py-2">Modificado</th>
+        <th class="px-4 py-2 text-right">Acciones</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-zinc-800">
+      {% for e in entries %}
+      {% set child_rel = (rel + '/' + e.name) if rel else e.name %}
+      <tr class="hover:bg-zinc-900/40">
+        <td class="px-4 py-2">
+          {% if e.kind == 'dir' %}
+            <a href="/files?path={{ child_rel|urlencode }}" class="text-blue-300 hover:underline">📁 {{ e.name }}</a>
+          {% else %}
+            {% if e.is_text or e.is_image %}
+              <a href="/files/view?path={{ child_rel|urlencode }}" class="hover:underline">📄 {{ e.name }}</a>
+            {% else %}
+              <span class="text-zinc-300">📄 {{ e.name }}</span>
+            {% endif %}
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 text-zinc-500 text-xs">{{ e.kind }}</td>
+        <td class="px-4 py-2 text-right tabular-nums text-xs text-zinc-400">
+          {% if e.kind == 'dir' %}—
+          {% elif e.size >= 1048576 %}{{ '%.1f' % (e.size / 1048576) }} MB
+          {% elif e.size >= 1024 %}{{ '%.0f' % (e.size / 1024) }} KB
+          {% else %}{{ e.size }} B{% endif %}
+        </td>
+        <td class="px-4 py-2 text-zinc-500 text-xs">
+          <span class="font-mono" title="{{ e.mtime }}">
+            {{ e.mtime | datetimeformat }}
+          </span>
+        </td>
+        <td class="px-4 py-2 text-right whitespace-nowrap">
+          {% if e.kind == 'file' %}
+          <a href="/files/download?path={{ child_rel|urlencode }}"
+             class="px-2 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded inline-block">⬇</a>
+          {% endif %}
+          <button type="button"
+                  onclick="openPerms('{{ child_rel|e }}', '{{ e.name|e }}', '{{ e.kind }}')"
+                  class="px-2 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded" title="Permisos">🔒</button>
+          <button type="button"
+                  onclick="openRename('{{ child_rel|e }}', '{{ e.name|e }}')"
+                  class="px-2 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded" title="Renombrar">✎</button>
+          <button type="button"
+                  onclick="openDelete('{{ child_rel|e }}', '{{ e.name|e }}', '{{ e.kind }}')"
+                  class="px-2 py-1 text-xs bg-red-700 hover:bg-red-600 rounded" title="Eliminar">🗑</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Modal: nueva carpeta -->
+<div id="mkdir-modal" class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur flex items-center justify-center p-6">
+  <form method="post" action="/files/mkdir" class="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+    <h3 class="text-lg font-semibold mb-4">Nueva carpeta</h3>
+    <input type="hidden" name="path" value="{{ rel }}">
+    <input name="name" required placeholder="nombre"
+           class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm mb-4" autofocus>
+    <div class="flex justify-end gap-2">
+      <button type="button" onclick="document.getElementById('mkdir-modal').classList.add('hidden')"
+              class="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm">Cancelar</button>
+      <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm font-medium">Crear</button>
+    </div>
+  </form>
+</div>
+
+<!-- Modal: subir archivos -->
+<div id="upload-modal" class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur flex items-center justify-center p-6">
+  <form method="post" action="/files/upload" enctype="multipart/form-data" class="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+    <h3 class="text-lg font-semibold mb-2">Subir archivos</h3>
+    <p class="text-xs text-zinc-500 mb-4">Destino: <code class="bg-zinc-800 px-1 rounded">{{ full }}</code></p>
+    <input type="hidden" name="path" value="{{ rel }}">
+    <input type="file" name="uploads" multiple required
+           class="w-full text-sm file:mr-3 file:px-3 file:py-1.5 file:bg-zinc-700 file:text-zinc-100 file:border-0 file:rounded mb-4">
+    <div class="flex justify-end gap-2">
+      <button type="button" onclick="document.getElementById('upload-modal').classList.add('hidden')"
+              class="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm">Cancelar</button>
+      <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm font-medium">Subir</button>
+    </div>
+  </form>
+</div>
+
+<!-- Modal: subir ZIP -->
+<div id="upload-zip-modal" class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur flex items-center justify-center p-6">
+  <form method="post" action="/files/upload-zip" enctype="multipart/form-data" class="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+    <h3 class="text-lg font-semibold mb-2">Subir ZIP y descomprimir</h3>
+    <p class="text-xs text-zinc-500 mb-4">El contenido se descomprime en <code class="bg-zinc-800 px-1 rounded">{{ full }}</code>.</p>
+    <input type="hidden" name="path" value="{{ rel }}">
+    <input type="file" name="zip" accept=".zip" required
+           class="w-full text-sm file:mr-3 file:px-3 file:py-1.5 file:bg-zinc-700 file:text-zinc-100 file:border-0 file:rounded mb-4">
+    <div class="flex justify-end gap-2">
+      <button type="button" onclick="document.getElementById('upload-zip-modal').classList.add('hidden')"
+              class="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm">Cancelar</button>
+      <button class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm font-medium">Subir y descomprimir</button>
+    </div>
+  </form>
+</div>
+
+<!-- Modal: rename -->
+<div id="rename-modal" class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur flex items-center justify-center p-6">
+  <form method="post" action="/files/rename" class="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+    <h3 class="text-lg font-semibold mb-2">Renombrar</h3>
+    <p id="rename-current" class="text-xs text-zinc-500 mb-4 font-mono"></p>
+    <input type="hidden" name="path" id="rename-path">
+    <input name="new_name" id="rename-input" required
+           class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm mb-4">
+    <div class="flex justify-end gap-2">
+      <button type="button" onclick="document.getElementById('rename-modal').classList.add('hidden')"
+              class="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm">Cancelar</button>
+      <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm font-medium">Renombrar</button>
+    </div>
+  </form>
+</div>
+
+<!-- Modal: delete -->
+<div id="delete-modal" class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur flex items-center justify-center p-6">
+  <form method="post" action="/files/delete" class="max-w-md w-full bg-zinc-900 border border-red-900 rounded-xl p-6">
+    <h3 class="text-lg font-semibold mb-2 text-red-400">Eliminar</h3>
+    <p id="delete-target" class="text-sm text-zinc-300 mb-2"></p>
+    <p id="delete-warn" class="text-xs text-amber-400 mb-3 hidden">Es una carpeta — se borrará recursivamente.</p>
+    <p class="text-xs text-zinc-400 mb-2">Escribe <strong>borrar</strong> para confirmar:</p>
+    <input type="hidden" name="path" id="delete-path">
+    <input name="confirm" id="delete-confirm" pattern="borrar" required autocomplete="off"
+           class="w-full px-3 py-2 bg-zinc-950 border border-red-800 rounded text-sm mb-4 font-mono">
+    <div class="flex justify-end gap-2">
+      <button type="button" onclick="document.getElementById('delete-modal').classList.add('hidden')"
+              class="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm">Cancelar</button>
+      <button class="px-4 py-2 bg-red-700 hover:bg-red-600 rounded text-sm font-medium">Eliminar</button>
+    </div>
+  </form>
+</div>
+
+<!-- Modal: permisos -->
+<div id="perms-modal" class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur flex items-center justify-center p-6">
+  <div class="max-w-lg w-full bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+    <h3 class="text-lg font-semibold mb-2">Permisos y propietario</h3>
+    <p id="perms-target" class="text-xs text-zinc-500 mb-4 font-mono"></p>
+
+    <div class="text-xs text-zinc-400 mb-3">
+      Actuales: <span id="perms-current" class="font-mono text-zinc-200">cargando…</span>
+    </div>
+
+    <form method="post" action="/files/chmod" class="border-t border-zinc-800 pt-4 mb-3">
+      <input type="hidden" name="path" id="perms-path-mode">
+      <div class="text-xs text-zinc-400 mb-2">Cambiar modo (octal)</div>
+      <div class="flex gap-2 items-center">
+        <input name="mode" id="perms-mode-input" required pattern="[0-7]{3,4}" placeholder="755"
+               class="w-24 px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm font-mono">
+        <select id="perms-preset" onchange="document.getElementById('perms-mode-input').value=this.value"
+                class="px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+          <option value="">— preset —</option>
+          <option value="755">755 (rwxr-xr-x — dirs WP)</option>
+          <option value="644">644 (rw-r--r-- — files WP)</option>
+          <option value="775">775 (group writable)</option>
+          <option value="664">664 (group writable)</option>
+          <option value="700">700 (solo dueño)</option>
+          <option value="600">600 (solo lectura dueño)</option>
+        </select>
+        <label class="text-xs text-zinc-400 flex items-center gap-1 ml-2">
+          <input type="checkbox" name="recursive" id="perms-recursive-mode"> recursivo
+        </label>
+        <button class="ml-auto px-3 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm">Aplicar chmod</button>
+      </div>
+    </form>
+
+    <form method="post" action="/files/chown" class="border-t border-zinc-800 pt-4">
+      <input type="hidden" name="path" id="perms-path-owner">
+      <div class="text-xs text-zinc-400 mb-2">Cambiar propietario</div>
+      <div class="flex gap-2 items-center">
+        <select name="owner" required class="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm font-mono">
+          <option value="www-data:www-data">www-data:www-data (default WP)</option>
+          <option value="appuser:appuser">appuser:appuser</option>
+          <option value="appuser:www-data">appuser:www-data</option>
+          <option value="root:root">root:root</option>
+        </select>
+        <label class="text-xs text-zinc-400 flex items-center gap-1">
+          <input type="checkbox" name="recursive" id="perms-recursive-own"> recursivo
+        </label>
+        <button class="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm">Aplicar chown</button>
+      </div>
+    </form>
+
+    <div class="flex justify-end mt-4">
+      <button type="button" onclick="document.getElementById('perms-modal').classList.add('hidden')"
+              class="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+async function openPerms(rel, name, kind){
+  document.getElementById('perms-path-mode').value = rel;
+  document.getElementById('perms-path-owner').value = rel;
+  document.getElementById('perms-target').textContent = '/var/www/' + rel;
+  document.getElementById('perms-current').textContent = 'cargando…';
+  document.getElementById('perms-mode-input').value = '';
+  document.getElementById('perms-recursive-mode').checked = false;
+  document.getElementById('perms-recursive-own').checked = false;
+  document.getElementById('perms-modal').classList.remove('hidden');
+  try {
+    const r = await fetch('/files/api/stat?path=' + encodeURIComponent(rel));
+    if (r.ok) {
+      const d = await r.json();
+      document.getElementById('perms-current').textContent = `${d.mode} (${d.owner})`;
+      document.getElementById('perms-mode-input').value = d.mode;
+    } else {
+      document.getElementById('perms-current').textContent = 'error';
+    }
+  } catch(e) {
+    document.getElementById('perms-current').textContent = 'error: ' + e.message;
+  }
+}
+
+function openRename(rel, name){
+  document.getElementById('rename-path').value = rel;
+  document.getElementById('rename-input').value = name;
+  document.getElementById('rename-current').textContent = '/var/www/' + rel;
+  document.getElementById('rename-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('rename-input').focus(), 50);
+}
+function openDelete(rel, name, kind){
+  document.getElementById('delete-path').value = rel;
+  document.getElementById('delete-target').textContent = '/var/www/' + rel;
+  document.getElementById('delete-warn').classList.toggle('hidden', kind !== 'dir');
+  document.getElementById('delete-confirm').value = '';
+  document.getElementById('delete-modal').classList.remove('hidden');
+}
+// click fuera o Esc cierra
+document.querySelectorAll('.fixed.inset-0').forEach(m => {
+  m.addEventListener('click', (e) => { if (e.target === m) m.classList.add('hidden'); });
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.querySelectorAll('.fixed.inset-0').forEach(m => m.classList.add('hidden'));
+});
+</script>
+{% endblock %}

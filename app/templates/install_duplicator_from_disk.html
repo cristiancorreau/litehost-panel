@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Duplicator desde disco — Admin{% endblock %}
+{% block content %}
+<a href="/sites/new" class="text-sm text-zinc-400 hover:text-white">← Tipos de sitio</a>
+<h1 class="text-2xl font-semibold mb-2 mt-2">Duplicator desde archivos en disco</h1>
+<p class="text-sm text-zinc-500 mb-4">Para <code class="bg-zinc-800 px-1 rounded">.daf</code> grandes (varios GB). Sube los archivos por SFTP/SCP al servidor y el panel los mueve al docroot del sitio.</p>
+
+<!-- Bloque de instrucciones SFTP -->
+<details class="border border-zinc-800 rounded-lg p-4 bg-zinc-900/40 mb-6 text-sm" open>
+  <summary class="cursor-pointer text-zinc-300 font-medium">📋 Cómo subir los archivos</summary>
+  <div class="mt-3 text-zinc-400 space-y-3">
+    <div>
+      <strong class="text-zinc-200">Carpeta recomendada:</strong>
+      <code class="bg-zinc-950 px-2 py-1 rounded text-emerald-400">{{ default_dir }}</code>
+      <span class="text-xs text-zinc-500"> — persistente, propietario appuser, fácil de limpiar.</span>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="border border-emerald-700/50 rounded p-3 bg-emerald-900/10">
+        <div class="text-emerald-300 font-medium text-xs uppercase mb-1">Si estás en la red local</div>
+        <div class="text-xs text-zinc-300 mb-2">(misma LAN/WiFi que el server) — más rápido, no pasa por ZeroTier.</div>
+        <div class="text-xs text-zinc-400 mb-1">Host:</div>
+        <code class="block bg-zinc-950 px-2 py-1 rounded text-emerald-400 mb-2">192.0.2.10</code>
+        <div class="text-xs text-zinc-400 mb-1">scp:</div>
+        <pre class="bg-zinc-950 p-2 rounded text-xs overflow-x-auto"><code>scp installer.php archive.daf \
+  appuser@192.0.2.10:{{ default_dir }}/</code></pre>
+      </div>
+
+      <div class="border border-blue-700/50 rounded p-3 bg-blue-900/10">
+        <div class="text-blue-300 font-medium text-xs uppercase mb-1">Si estás fuera (vía ZeroTier)</div>
+        <div class="text-xs text-zinc-300 mb-2">Conecta primero a ZeroTier; luego usa la IP de la red ZT.</div>
+        <div class="text-xs text-zinc-400 mb-1">Host:</div>
+        <code class="block bg-zinc-950 px-2 py-1 rounded text-blue-400 mb-2">192.0.2.20</code>
+        <div class="text-xs text-zinc-400 mb-1">scp:</div>
+        <pre class="bg-zinc-950 p-2 rounded text-xs overflow-x-auto"><code>scp installer.php archive.daf \
+  appuser@192.0.2.20:{{ default_dir }}/</code></pre>
+      </div>
+    </div>
+
+    <div>
+      <strong class="text-zinc-200">Desde un cliente SFTP (Filezilla, Cyberduck):</strong>
+      <ul class="list-disc list-inside text-xs mt-1 space-y-1">
+        <li>Host: <code class="bg-zinc-950 px-1 rounded">192.0.2.10</code> (LAN) o <code class="bg-zinc-950 px-1 rounded">192.0.2.20</code> (ZeroTier)</li>
+        <li>Port: <code class="bg-zinc-950 px-1 rounded">22</code></li>
+        <li>User: <code class="bg-zinc-950 px-1 rounded">appuser</code> · key o password de SSH</li>
+        <li>Carpeta destino: <code class="bg-zinc-950 px-1 rounded">{{ default_dir }}/</code></li>
+      </ul>
+    </div>
+
+    <div class="text-xs text-zinc-500 pt-2 border-t border-zinc-800">
+      <strong class="text-amber-400">Otras carpetas válidas:</strong>
+      cualquier subdir de <code class="bg-zinc-950 px-1 rounded">/tmp/</code> o <code class="bg-zinc-950 px-1 rounded">/home/appuser/</code>.
+      <span class="block mt-1">Tip: <code class="bg-zinc-950 px-1 rounded">/tmp/</code> se vacía al reiniciar el server. Si quieres conservar archivos entre reboots, usa <code class="bg-zinc-950 px-1 rounded">/home/appuser/</code>.</span>
+    </div>
+  </div>
+</details>
+
+{% if error %}<div class="mb-4 p-3 rounded border border-red-700 bg-red-900/30 text-red-200 text-sm">{{error}}</div>{% endif %}
+
+<!-- Selector de directorio (NO es parte del form principal) -->
+<div class="border border-zinc-800 rounded-lg p-4 bg-zinc-900/40 mb-6">
+  <label class="block text-sm">
+    <span class="block mb-1 text-zinc-400">Directorio donde están tus archivos</span>
+    <div class="flex gap-2">
+      <input id="dir-input" value="{{ current_dir }}"
+             placeholder="/home/appuser/uploads/duplicator"
+             class="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm font-mono">
+      <button type="button" onclick="refreshDir()"
+              class="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm">⟳ Refrescar</button>
+    </div>
+    <div id="dir-status" class="text-xs mt-1 min-h-[1rem] text-zinc-500"></div>
+  </label>
+</div>
+
+<form method="post" action="/sites/new/duplicator-from-disk"
+      class="grid grid-cols-1 md:grid-cols-2 gap-4 border border-zinc-800 rounded-lg p-6 bg-zinc-900/40"
+      data-loader-title="Preparando sitio Duplicator…"
+      data-loader-interval="2000"
+      data-loader-steps='["Validando subdominio","Creando docroot","Moviendo installer.php","Moviendo archive.daf","Creando base de datos vacía","Configurando vhost nginx + SSL","Listo — abre /installer.php para completar el wizard"]'>
+
+  <label class="text-sm md:col-span-2">
+    <span class="block mb-1 text-zinc-400">Subdominio</span>
+    <div class="flex">
+      <input name="subdomain" required pattern="[a-z0-9][a-z0-9-]{0,30}[a-z0-9]?"
+             class="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-l text-sm"
+             oninput="checkSub(this)">
+      <span class="px-3 py-2 bg-zinc-800 border border-l-0 border-zinc-700 rounded-r text-sm text-zinc-400">.lab.example.com</span>
+    </div>
+    <div class="sub-check text-xs mt-1 min-h-[1rem]"></div>
+  </label>
+
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">Versión PHP</span>
+    <select name="php_version" class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+      {% for v in php_versions %}
+        <option value="{{v}}" {% if v == default_php %}selected{% endif %}>{{v}}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label class="text-sm">
+    <span class="block mb-1 text-zinc-400">installer.php</span>
+    <select name="installer_path" id="installer-select" required
+            class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm font-mono">
+      {% if installers %}
+        {% for f in installers %}
+          <option value="{{ f.path }}">{{ f.name }} ({{ '%.0f' % (f.size/1024) }} KB)</option>
+        {% endfor %}
+      {% else %}
+        <option value="" disabled selected>— ninguno encontrado en {{ current_dir }} —</option>
+      {% endif %}
+    </select>
+  </label>
+
+  <label class="text-sm md:col-span-2">
+    <span class="block mb-1 text-zinc-400">archive (.daf / .zip)</span>
+    <select name="archive_path" id="archive-select" required
+            class="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm font-mono">
+      {% if archives %}
+        {% for f in archives %}
+          <option value="{{ f.path }}">{{ f.name }} ({{ '%.2f' % (f.size/1024/1024/1024) }} GB)</option>
+        {% endfor %}
+      {% else %}
+        <option value="" disabled selected>— ninguno encontrado en {{ current_dir }} —</option>
+      {% endif %}
+    </select>
+  </label>
+
+  <div class="md:col-span-2 flex justify-end gap-2">
+    <a href="/sites/new" class="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm">Cancelar</a>
+    <button class="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded text-sm font-medium">Preparar sitio</button>
+  </div>
+</form>
+
+<div class="mt-6 text-xs text-zinc-500">
+  Los archivos se <strong>mueven</strong> (no se copian) al docroot. Después de mover ya no estarán en la carpeta de origen.
+</div>
+
+<script>
+function fmtSize(b){
+  if (b >= 1073741824) return (b/1073741824).toFixed(2) + ' GB';
+  if (b >= 1048576) return Math.round(b/1048576) + ' MB';
+  if (b >= 1024) return Math.round(b/1024) + ' KB';
+  return b + ' B';
+}
+
+async function refreshDir(){
+  const dir = document.getElementById('dir-input').value.trim();
+  const status = document.getElementById('dir-status');
+  status.textContent = 'buscando...';
+  status.className = 'text-xs mt-1 min-h-[1rem] text-zinc-400';
+  try {
+    const r = await fetch('/api/list-upload-dir?dir=' + encodeURIComponent(dir));
+    const d = await r.json();
+    if (!d.ok){
+      status.textContent = '✗ ' + (d.reason || 'error');
+      status.className = 'text-xs mt-1 min-h-[1rem] text-red-400';
+      return;
+    }
+    if (!d.exists){
+      status.textContent = '⚠ La carpeta no existe todavía. Créala con: mkdir -p ' + dir;
+      status.className = 'text-xs mt-1 min-h-[1rem] text-amber-400';
+      return;
+    }
+    const ni = d.installers.length, na = d.archives.length;
+    status.textContent = `✓ ${ni} installer(s) + ${na} archive(s) encontrados en ${dir}`;
+    status.className = 'text-xs mt-1 min-h-[1rem] text-emerald-400';
+
+    // rellenar selects
+    const insSel = document.getElementById('installer-select');
+    insSel.innerHTML = '';
+    if (d.installers.length === 0){
+      insSel.innerHTML = '<option value="" disabled selected>— ninguno encontrado —</option>';
+    } else {
+      d.installers.forEach(f => {
+        const o = document.createElement('option');
+        o.value = f.path; o.textContent = `${f.name} (${fmtSize(f.size)})`;
+        insSel.appendChild(o);
+      });
+    }
+    const arcSel = document.getElementById('archive-select');
+    arcSel.innerHTML = '';
+    if (d.archives.length === 0){
+      arcSel.innerHTML = '<option value="" disabled selected>— ninguno encontrado —</option>';
+    } else {
+      d.archives.forEach(f => {
+        const o = document.createElement('option');
+        o.value = f.path; o.textContent = `${f.name} (${fmtSize(f.size)})`;
+        arcSel.appendChild(o);
+      });
+    }
+  } catch (e) {
+    status.textContent = 'error: ' + e.message;
+    status.className = 'text-xs mt-1 min-h-[1rem] text-red-400';
+  }
+}
+// auto-refresh al cambiar el input (debounce 500ms)
+let _t = null;
+document.getElementById('dir-input').addEventListener('input', () => {
+  clearTimeout(_t);
+  _t = setTimeout(refreshDir, 500);
+});
+</script>
+{% endblock %}

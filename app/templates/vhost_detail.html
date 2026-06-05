@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{fqdn}} — Vhost{% endblock %}
+{% block content %}
+<a href="/" class="text-sm text-zinc-400 hover:text-white">← Sitios</a>
+<h1 class="text-2xl font-semibold mb-2 mt-2">{{fqdn}}</h1>
+<p class="text-sm text-zinc-500 mb-6">Vhost de nginx pre-existente (no gestionado por panel). Aquí puedes cambiar la versión PHP y ver logs.</p>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+  <div class="border border-zinc-800 rounded-lg p-4">
+    <div class="text-xs text-zinc-500 uppercase mb-2">Datos</div>
+    <dl class="text-sm space-y-1">
+      <div class="flex justify-between"><dt class="text-zinc-400">Tipo</dt><dd>{{ vhost.type }}</dd></div>
+      <div class="flex justify-between"><dt class="text-zinc-400">SSL</dt><dd>{{ "sí" if vhost.ssl else "no" }}</dd></div>
+      {% if vhost.root %}<div class="flex justify-between"><dt class="text-zinc-400">Docroot</dt><dd class="font-mono text-xs">{{vhost.root}}</dd></div>{% endif %}
+      <div class="flex justify-between"><dt class="text-zinc-400">PHP</dt><dd class="font-mono">{{ vhost.php_version or "—" }}</dd></div>
+      <div class="flex justify-between"><dt class="text-zinc-400">server_names</dt><dd class="text-xs">{{ vhost.server_names|join(", ") }}</dd></div>
+      <div class="flex justify-between"><dt class="text-zinc-400">Archivo</dt><dd class="font-mono text-xs">/etc/nginx/sites-available/{{vhost.filename}}</dd></div>
+    </dl>
+    <a href="https://{{fqdn}}" target="_blank" class="mt-3 inline-block text-sm text-emerald-400 hover:underline">abrir sitio ↗</a>
+  </div>
+
+  {% if vhost.type == 'php' %}
+  <div class="border border-zinc-800 rounded-lg p-4">
+    <div class="text-xs text-zinc-500 uppercase mb-2">Cambiar versión PHP</div>
+    <form method="post" action="/vhost/{{fqdn}}/php" class="flex gap-2 items-end"
+          onsubmit="return confirm('¿Cambiar PHP a la versión seleccionada y reload nginx?');">
+      <select name="version" class="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-700 rounded text-sm">
+        {% for v in php_versions %}
+        <option value="{{v}}" {% if v == vhost.php_version %}selected{% endif %}>{{v}}</option>
+        {% endfor %}
+      </select>
+      <button class="px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm">Aplicar</button>
+    </form>
+    <p class="text-xs text-zinc-500 mt-2">Se hace backup automático del archivo de vhost antes del cambio. Si <code>nginx -t</code> falla, no se aplica.</p>
+  </div>
+  {% endif %}
+</div>
+
+<div class="flex gap-3">
+  <a href="/logs?kind=nginx-error&fqdn={{fqdn}}" class="px-3 py-2 bg-amber-700/40 hover:bg-amber-700/60 rounded text-sm">ver error log</a>
+  <a href="/logs?kind=nginx-access&fqdn={{fqdn}}" class="px-3 py-2 bg-blue-700/40 hover:bg-blue-700/60 rounded text-sm">ver access log</a>
+</div>
+{% endblock %}
