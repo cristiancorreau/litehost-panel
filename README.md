@@ -1,128 +1,209 @@
-# LiteHost Panel
+<div align="center">
 
-Panel de control **self-hosted** y ligero, escrito en **FastAPI**, para administrar
-múltiples sitios en un único servidor Linux detrás de **nginx**. Aprovisiona sitios
-WordPress, sitios estáticos y apps/servicios de **Coolify** como subdominios bajo un
-dominio wildcard, gestiona certificados SSL, versiones de PHP-FPM, bases de datos MySQL,
-backups/restauración, un gestor de archivos web y una mini-wiki de documentación.
+<img src="docs/banner.svg" alt="LiteHost Panel" width="100%">
 
-> Este proyecto nació como herramienta interna para un servidor de laboratorio y se
-> publica para la comunidad. Los valores específicos del entorno original fueron
-> reemplazados por placeholders (`example.com`, `appuser`, IPs de documentación). Revisa
-> y adapta la configuración a tu infraestructura antes de usarlo.
+<h3>Panel de control <em>self-hosted</em> y ligero para administrar muchos sitios en un solo servidor.</h3>
+
+<p>
+Aprovisiona sitios <b>WordPress</b>, <b>estáticos</b> y apps de <b>Coolify</b> como subdominios
+detrás de <b>nginx</b> con SSL wildcard — y gestiona PHP-FPM, MySQL, backups, archivos y
+documentación desde una sola interfaz.
+</p>
+
+<p>
+<a href="#-quick-start"><strong>Empezar »</strong></a>
+&middot;
+<a href="#-características">Features</a>
+&middot;
+<a href="#-arquitectura">Arquitectura</a>
+&middot;
+<a href="https://github.com/cristiancorreau/litehost-panel/issues/new">Reportar bug</a>
+</p>
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-22c55e.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![nginx](https://img.shields.io/badge/nginx-009639?logo=nginx&logoColor=white)](https://nginx.org)
+![Self-hosted](https://img.shields.io/badge/self--hosted-0b1120?logo=linux&logoColor=white)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-a78bfa.svg)](#-contribuir)
+[![GitHub stars](https://img.shields.io/github/stars/cristiancorreau/litehost-panel?style=social)](https://github.com/cristiancorreau/litehost-panel/stargazers)
+
+</div>
 
 ---
 
-## Características
+<details>
+<summary><b>📖 Tabla de contenidos</b></summary>
 
-- **Sitios WordPress** — descarga el core, crea la BD y el usuario MySQL, escribe
-  `wp-config.php`, genera el vhost nginx y corre `wp core install` vía WP-CLI.
-- **Sitios estáticos** — docroot + vhost listo, con instrucciones de subida (scp/zip).
-- **Restauración Duplicator** — desde un paquete subido o desde un directorio del disco,
-  con reescritura de URLs (`wp search-replace`).
-- **Servicios/apps Coolify** — registra un subdominio que hace `proxy_pass` a un puerto
-  del host (rango configurable 8101–8200) gestionado por Coolify.
-- **Gestor de vhosts nginx** — inventario en vivo de `sites-enabled`, plantillas
-  `php` / `static` / `proxy`, habilitar/eliminar, cambiar versión de PHP por sitio.
-- **PHP-FPM** — ver/editar parámetros del pool (`pm`, `memory_limit`, uploads…) por versión.
-- **Backups y restore** — `mysqldump` + `tar` del docroot al borrar un sitio, con
-  restauración posterior desde el panel.
-- **Gestor de archivos** — navegar/editar/subir/permisos dentro de `/var/www` (acotado).
-- **Métricas** — CPU, RAM, disco y uso por sitio.
-- **Mini-wiki** — páginas markdown editables (incluye docs de arquitectura y de
-  multitenancy con Supabase que vienen sembradas).
-- **Landing autogenerada** — index del dominio base con tarjetas de los sitios activos.
+- [¿Por qué?](#-por-qué)
+- [Características](#-características)
+- [Arquitectura](#-arquitectura)
+- [Quick start](#-quick-start)
+- [Configuración](#-configuración)
+- [El helper privilegiado](#-el-helper-privilegiado)
+- [Seguridad](#-seguridad)
+- [Stack](#-stack)
+- [Contribuir](#-contribuir)
+- [Licencia](#-licencia)
 
-## Arquitectura
+</details>
 
+## 💡 ¿Por qué?
+
+Montar varios WordPress, landings estáticas y apps Docker en un mismo VPS suele terminar en
+una maraña de vhosts escritos a mano, certificados, sockets de PHP y dumps de MySQL dispersos.
+**LiteHost Panel** pone todo eso detrás de una UI simple: creas un subdominio, eliges el tipo
+de sitio y el panel se encarga del docroot, la base de datos, el vhost de nginx, el SSL y el
+backup automático al borrar. Sin agentes, sin nube — un solo proceso FastAPI en tu servidor.
+
+> [!NOTE]
+> Este proyecto nació como herramienta interna de un servidor de laboratorio y se publica para
+> la comunidad. Los valores del entorno original fueron reemplazados por placeholders
+> (`example.com`, `appuser`, IPs de documentación) y **todo es configurable por variables de
+> entorno**. Adáptalo a tu infraestructura antes de usarlo.
+
+## ✨ Características
+
+| | Característica | Qué hace |
+|---|---|---|
+| 🟢 | **Sitios WordPress** | Descarga el core, crea BD + usuario MySQL, escribe `wp-config.php`, genera el vhost y corre `wp core install` vía WP-CLI. |
+| 🔵 | **Sitios estáticos** | Docroot + vhost listos, con instrucciones de subida (scp / zip). |
+| ♻️ | **Restore Duplicator** | Desde un paquete subido o desde disco, con reescritura de URLs (`wp search-replace`). |
+| 🟣 | **Apps / servicios Coolify** | Registra un subdominio que hace `proxy_pass` a un puerto del host (rango 8101–8200) gestionado por Coolify. |
+| 🌐 | **Gestor de vhosts nginx** | Inventario en vivo de `sites-enabled`, plantillas `php` / `static` / `proxy`, habilitar/eliminar, cambiar PHP por sitio. |
+| ⚙️ | **PHP-FPM** | Ver y editar parámetros del pool (`pm`, `memory_limit`, uploads…) por versión. |
+| 💾 | **Backups & restore** | `mysqldump` + `tar` del docroot al borrar un sitio, restaurable desde el panel. |
+| 📂 | **Gestor de archivos** | Navegar / editar / subir / permisos dentro de `/var/www` (acotado y seguro). |
+| 📊 | **Métricas** | CPU, RAM, disco y uso por sitio. |
+| 📚 | **Mini-wiki** | Páginas markdown editables (incluye docs de arquitectura y de multitenancy con Supabase). |
+| 🪧 | **Landing autogenerada** | Index del dominio base con tarjetas de los sitios activos. |
+
+## 🏗 Arquitectura
+
+El panel corre como un **usuario sin privilegios**. Cada acción que requiere root se delega en
+un único helper auditable (`sw-panel-helper`) autorizado por una regla de `sudoers` acotada.
+
+```mermaid
+flowchart LR
+    User([🌐 Navegador]) -->|HTTPS| Nginx
+
+    subgraph Server [Servidor Linux · nginx en 80/443]
+      Nginx["nginx<br/>vhost por subdominio<br/>SSL wildcard"]
+      Nginx -->|panel.dominio| Panel["LiteHost Panel<br/>FastAPI · uvicorn :9080"]
+      Nginx -->|*.dominio · WordPress| PHP["PHP-FPM<br/>7.4 / 8.x sockets"]
+      Nginx -->|*.dominio · estático| Disk["/var/www/&lt;fqdn&gt;"]
+      Nginx -->|*.dominio · apps| Coolify["Coolify<br/>127.0.0.1:8101-8200"]
+
+      Panel -. sudo -n .-> Helper["sw-panel-helper<br/>(acción privilegiada)"]
+      Helper --> Nginx
+      Helper --> PHP
+      Helper --> MySQL[(MySQL / MariaDB)]
+      Helper --> Disk
+    end
+
+    classDef panel fill:#052e1a,stroke:#22c55e,color:#bbf7d0;
+    classDef infra fill:#0b1120,stroke:#334155,color:#e2e8f0;
+    class Panel panel;
+    class Nginx,PHP,Disk,Coolify,Helper,MySQL infra;
 ```
-Navegador ─HTTPS─▶ nginx (vhost por subdominio, SSL wildcard)
-                     │
-                     ├─ panel.<dominio>  ─▶ uvicorn 127.0.0.1:9080  (este panel, FastAPI)
-                     ├─ *.<dominio> WP    ─▶ PHP-FPM (unix sockets)
-                     ├─ *.<dominio> static─▶ /var/www/<fqdn>/
-                     └─ *.<dominio> apps  ─▶ 127.0.0.1:8101-8200 (Coolify)
-```
 
-El panel corre como un **usuario sin privilegios**. Toda acción que requiere root
-(escribir vhosts, tocar `/var/www`, recargar nginx, php-fpm, systemd, mysqldump…) se
-delega en un único helper, **`sw-panel-helper`**, autorizado vía una regla de `sudoers`
-acotada exclusivamente a ese binario. Esto mantiene la superficie de privilegios mínima
-y auditable.
+## 🚀 Quick start
 
-## Requisitos
-
-- Linux con `nginx`, `php-fpm` (7.4 / 8.x), `mysql`/`mariadb`, `certbot` (SSL wildcard).
-- Python 3.11+
-- Opcional: [Coolify](https://coolify.io/) si quieres gestionar apps/servicios Docker.
-- DNS con un wildcard `*.tu-dominio` apuntando al servidor.
-
-## Instalación
+> **Requisitos:** Linux con `nginx`, `php-fpm` (7.4 / 8.x), `mysql`/`mariadb`, `certbot`
+> (SSL wildcard) y Python 3.11+. Opcional: [Coolify](https://coolify.io/) para apps Docker.
+> DNS con un wildcard `*.tu-dominio` apuntando al servidor.
 
 ```bash
-# 1. Código y entorno
-sudo mkdir -p /opt/sw-panel && sudo chown $USER /opt/sw-panel
-git clone https://github.com/<tu-usuario>/litehost-panel.git /opt/sw-panel
+# 1) Código y entorno virtual
+sudo mkdir -p /opt/sw-panel && sudo chown "$USER" /opt/sw-panel
+git clone https://github.com/cristiancorreau/litehost-panel.git /opt/sw-panel
 cd /opt/sw-panel
 python3 -m venv venv
 ./venv/bin/pip install -r requirements.txt
 
-# 2. Configuración
+# 2) Configuración (genera hash y secreto siguiendo los comentarios)
 sudo mkdir -p /etc/sw-panel
 sudo cp .env.example /etc/sw-panel/panel.env
-sudo nano /etc/sw-panel/panel.env     # genera el hash y el secreto (ver comentarios)
+sudo nano /etc/sw-panel/panel.env
 
-# 3. Helper privilegiado + sudoers
-sudo cp deploy/sw-panel-helper /usr/local/bin/sw-panel-helper
-sudo chown root:root /usr/local/bin/sw-panel-helper
-sudo chmod 0750 /usr/local/bin/sw-panel-helper
-sudo cp deploy/sudoers.sw-panel /etc/sudoers.d/sw-panel
-sudo chmod 0440 /etc/sudoers.d/sw-panel
-sudo visudo -cf /etc/sudoers.d/sw-panel    # validar
+# 3) Helper privilegiado + sudoers
+sudo install -o root -g root -m 0750 deploy/sw-panel-helper /usr/local/bin/sw-panel-helper
+sudo install -o root -g root -m 0440 deploy/sudoers.sw-panel /etc/sudoers.d/sw-panel
+sudo visudo -cf /etc/sudoers.d/sw-panel
 
-# 4. Servicio systemd
+# 4) Servicio systemd
 sudo cp deploy/sw-panel.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now sw-panel
+sudo systemctl daemon-reload && sudo systemctl enable --now sw-panel
 
-# 5. Vhost del panel
+# 5) Vhost del panel (edita server_name + rutas SSL)
 sudo cp deploy/nginx-panel.conf.example /etc/nginx/sites-available/panel.conf
-# edita server_name + rutas SSL, luego:
 sudo ln -s /etc/nginx/sites-available/panel.conf /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-El panel queda en `https://panel.<tu-dominio>` protegido con HTTP Basic
-(usuario/clave de `panel.env`).
+El panel queda en **`https://panel.<tu-dominio>`**, protegido con HTTP Basic.
 
-## Configuración
+## 🔧 Configuración
 
-Todas las variables viven en `panel.env` (ver [`.env.example`](.env.example)). Las clave:
+Todo vive en `panel.env` (ver [`.env.example`](.env.example)).
 
-| Variable | Para qué |
-|---|---|
-| `PANEL_ADMIN_USER` / `PANEL_ADMIN_PASSWORD_HASH` | Login del panel (bcrypt). |
-| `PANEL_SESSION_SECRET` | Secreto de sesión. |
-| `PANEL_LAB_DOMAIN` | Dominio base de los subdominios. |
-| `PANEL_SYSTEM_USER` | Usuario dueño de `/home/<user>` (uploads/backups). |
-| `MYSQL_ROOT_*` | Credenciales para crear BDs de WordPress. |
-| `COOLIFY_API_*` | Integración opcional con Coolify. |
+<details>
+<summary><b>Variables de entorno</b></summary>
 
-## El helper `sw-panel-helper`
+| Variable | Default | Para qué |
+|---|---|---|
+| `PANEL_ADMIN_USER` | `admin` | Usuario del login. |
+| `PANEL_ADMIN_PASSWORD_HASH` | — | Hash **bcrypt** de la contraseña. |
+| `PANEL_SESSION_SECRET` | `change-me` | Secreto de sesión. |
+| `PANEL_LAB_DOMAIN` | `lab.example.com` | Dominio base de los subdominios. |
+| `PANEL_SYSTEM_USER` | `appuser` | Usuario dueño de `/home/<user>` (uploads/backups). |
+| `MYSQL_ROOT_USER` / `MYSQL_ROOT_PASS` | `root` / — | Credenciales para crear BDs. |
+| `MYSQL_HOST` | `localhost` | Host de MySQL/MariaDB. |
+| `PANEL_DEFAULT_PHP` | `8.3` | PHP por defecto para sitios nuevos. |
+| `COOLIFY_API_URL` / `COOLIFY_API_TOKEN` | — | Integración opcional con Coolify. |
+| `COOLIFY_PORT_START` / `COOLIFY_PORT_END` | `8101` / `8200` | Rango de puertos para apps. |
 
-`deploy/sw-panel-helper` es una **implementación de referencia** reconstruida a partir
-de los puntos de llamada del código. Implementa subcomandos para nginx, gestión de
-docroots, el gestor de archivos (acotado a `/var/www`), backups, php-fpm, servicios y
-WP-CLI. **Audítalo y ajústalo a tu entorno antes de producción** — es el componente con
-privilegios.
+Genera el hash y el secreto:
 
-## Seguridad
+```bash
+python3 -c "from passlib.hash import bcrypt; print(bcrypt.hash('TU_PASSWORD'))"
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+```
 
-- Cambia `PANEL_SESSION_SECRET` y usa una contraseña fuerte.
+</details>
+
+## 🛡 El helper privilegiado
+
+[`deploy/sw-panel-helper`](deploy/sw-panel-helper) es una **implementación de referencia** que
+expone subcomandos acotados (nginx, docroots, gestor de archivos limitado a `/var/www`, backups,
+php-fpm, servicios, WP-CLI). El panel jamás ejecuta root directamente: solo invoca este helper
+vía `sudo -n`. Es el componente con privilegios — **audítalo y ajústalo a tu entorno antes de
+producción**.
+
+## 🔒 Seguridad
+
+- Usa una contraseña fuerte y cambia `PANEL_SESSION_SECRET`.
 - Sirve el panel **siempre tras HTTPS**.
-- La regla de sudoers debe apuntar **solo** a `sw-panel-helper`.
-- El gestor de archivos está acotado a `/var/www`; revisa los guardas si amplías rutas.
+- La regla de `sudoers` debe apuntar **solo** a `sw-panel-helper`.
+- El gestor de archivos está restringido a `/var/www`; revisa los guardas si amplías rutas.
 
-## Licencia
+## 🧰 Stack
 
-[MIT](LICENSE).
+`FastAPI` · `Uvicorn` · `Jinja2` · `SQLAlchemy` + `SQLite` · `PyMySQL` · `passlib/bcrypt` ·
+`httpx` — sobre `nginx`, `PHP-FPM`, `MySQL/MariaDB` y, opcionalmente, `Coolify`.
+
+## 🤝 Contribuir
+
+Los PRs son bienvenidos. Para cambios grandes, abre primero un *issue* para discutir la idea.
+Al ser una herramienta de infraestructura, presta especial atención al `sw-panel-helper` y a
+los límites de rutas/permisos.
+
+## 📄 Licencia
+
+Distribuido bajo licencia **MIT**. Ver [`LICENSE`](LICENSE).
+
+---
+
+<div align="center">
+<sub>Hecho con ☕ y FastAPI · si te resulta útil, deja una ⭐</sub>
+</div>

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="240" viewBox="0 0 860 240" fill="none" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="860" y2="240" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0b1120"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4ade80"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="860" height="240" rx="20" fill="url(#bg)"/>
+  <rect x="0.5" y="0.5" width="859" height="239" rx="19.5" fill="none" stroke="#1f2937"/>
+
+  <!-- glyph: stacked server panels -->
+  <g transform="translate(58,64)">
+    <rect x="0"  y="0"  width="112" height="32" rx="7" fill="#1e293b" stroke="#334155"/>
+    <rect x="0"  y="40" width="112" height="32" rx="7" fill="#1e293b" stroke="#334155"/>
+    <rect x="0"  y="80" width="112" height="32" rx="7" fill="#1e293b" stroke="#334155"/>
+    <circle cx="16" cy="16" r="5" fill="url(#accent)"/>
+    <circle cx="16" cy="56" r="5" fill="#22d3ee"/>
+    <circle cx="16" cy="96" r="5" fill="#a78bfa"/>
+    <rect x="32" y="12" width="60" height="8" rx="4" fill="#334155"/>
+    <rect x="32" y="52" width="60" height="8" rx="4" fill="#334155"/>
+    <rect x="32" y="92" width="44" height="8" rx="4" fill="#334155"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="210" y="108" font-size="52" font-weight="700" fill="#f8fafc" letter-spacing="-1">
+    LiteHost <tspan fill="url(#accent)">Panel</tspan>
+  </text>
+  <text x="212" y="146" font-size="21" font-weight="500" fill="#94a3b8">
+    Self-hosted hosting control panel · FastAPI + nginx
+  </text>
+
+  <!-- tag chips -->
+  <g font-size="13" font-weight="600">
+    <rect x="212" y="170" width="98" height="28" rx="14" fill="#052e1a" stroke="#166534"/>
+    <text x="261" y="188" fill="#4ade80" text-anchor="middle">WordPress</text>
+    <rect x="320" y="170" width="74" height="28" rx="14" fill="#082f3a" stroke="#155e75"/>
+    <text x="357" y="188" fill="#22d3ee" text-anchor="middle">Static</text>
+    <rect x="404" y="170" width="78" height="28" rx="14" fill="#1e1b4b" stroke="#4338ca"/>
+    <text x="443" y="188" fill="#a78bfa" text-anchor="middle">Coolify</text>
+    <rect x="492" y="170" width="120" height="28" rx="14" fill="#1f2937" stroke="#374151"/>
+    <text x="552" y="188" fill="#cbd5e1" text-anchor="middle">Backups · SSL · PHP</text>
+  </g>
+</svg>
