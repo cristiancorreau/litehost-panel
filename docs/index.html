@@ -72,10 +72,16 @@
     background:#0f172a;color:#cbd5e1}
 
   /* code block */
+  .code-wrap{position:relative}
   .code{background:#070d1a;border:1px solid var(--line);border-radius:14px;padding:20px 22px;overflow:auto;
-    font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;font-size:13.5px;line-height:1.8;color:#cbd5e1}
+    white-space:pre;font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;font-size:13.5px;line-height:1.8;color:#cbd5e1}
   .code .c{color:#64748b}
   .code .g{color:var(--green)}
+  .copy-btn{position:absolute;top:11px;right:11px;z-index:2;cursor:pointer;
+    font:600 12px/1 'Segoe UI',system-ui,sans-serif;display:inline-flex;align-items:center;gap:6px;
+    padding:8px 12px;border-radius:9px;color:#cbd5e1;background:#0f172a;border:1px solid var(--line);transition:.15s}
+  .copy-btn:hover{border-color:#3f4d63;color:#fff;background:#111c33}
+  .copy-btn.copied{color:var(--green);border-color:#166534;background:#052e1a}
 
   /* two col */
   .two{display:grid;grid-template-columns:1.1fr 1fr;gap:40px;align-items:start}
@@ -174,6 +180,8 @@
     <div class="eyebrow">Quick start</div>
     <h2>En marcha en minutos</h2>
     <p class="sub">Recomendado: <b>Ubuntu Server 22.04 LTS</b> · nginx · PHP-FPM 7.4/8.x · MySQL 8 o MariaDB · certbot · Python 3.10+ · 2 vCPU / 4 GB RAM. DNS con wildcard <code>*.tu-dominio</code>.</p>
+    <div class="code-wrap">
+    <button class="copy-btn" data-copy type="button">📋 Copiar</button>
     <div class="code">
 <span class="c"># Instalador interactivo: instala dependencias, crea el venv,</span>
 <span class="c"># pregunta cada valor y genera el hash bcrypt + el secreto.</span>
@@ -189,6 +197,7 @@ sudo ./install.sh
 
 <span class="c"># ¿Solo regenerar el .env?</span>
 sudo ./install.sh --env-only
+    </div>
     </div>
     <div class="cta" style="justify-content:flex-start;margin-top:26px">
       <a class="btn btn-primary" href="https://github.com/cristiancorreau/litehost-panel#-quick-start" target="_blank" rel="noopener">Guía completa →</a>
@@ -208,6 +217,31 @@ sudo ./install.sh --env-only
     <p style="margin-top:14px">Si te resulta útil, deja una ⭐ en el repo.</p>
   </div>
 </footer>
+
+<script>
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var code = btn.parentElement.querySelector('.code');
+      var text = code.innerText.trim();
+      var done = function () {
+        var original = btn.innerHTML;
+        btn.classList.add('copied');
+        btn.innerHTML = '✓ Copiado';
+        setTimeout(function () { btn.classList.remove('copied'); btn.innerHTML = original; }, 1800);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(fallback);
+      } else { fallback(); }
+      function fallback() {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        ta.remove(); done();
+      }
+    });
+  });
+</script>
 
 </body>
 </html>
