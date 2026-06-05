@@ -38,6 +38,7 @@ documentación desde una sola interfaz.
 - [¿Por qué?](#-por-qué)
 - [Características](#-características)
 - [Arquitectura](#-arquitectura)
+- [Entorno recomendado](#-entorno-recomendado)
 - [Quick start](#-quick-start)
 - [Configuración](#-configuración)
 - [El helper privilegiado](#-el-helper-privilegiado)
@@ -107,11 +108,38 @@ flowchart LR
     class Nginx,PHP,Disk,Coolify,Helper,MySQL infra;
 ```
 
+## 🖥 Entorno recomendado
+
+Probado en **Ubuntu Server 22.04 LTS**. Este es el stack de referencia:
+
+| Componente | Recomendado | Notas |
+|---|---|---|
+| **Sistema operativo** | **Ubuntu Server 22.04 LTS** (Jammy) | También funciona en 24.04 LTS. 64-bit. |
+| **Python** | 3.10+ | 22.04 trae 3.10; 24.04 trae 3.12. |
+| **nginx** | 1.18+ | Reverse proxy y vhosts. |
+| **PHP-FPM** | 7.4 + 8.1–8.4 (vía PPA `ondrej/php`) | Multi-versión seleccionable por sitio. |
+| **Base de datos** | MySQL 8.0 *o* MariaDB 10.6+ | El servidor de referencia usa MySQL 8.0. |
+| **certbot** | 1.21+ | Certificado **wildcard** por desafío DNS. |
+| **RAM** | 2 GB mínimo · 4 GB+ recomendado | Más si usas Coolify/Supabase. |
+| **Red / acceso** | root o `sudo`, puertos 80/443 públicos | DNS con wildcard `*.tu-dominio` → servidor. |
+
+> [!TIP]
+> El instalador (`install.sh`) puede añadir el PPA `ondrej/php` e instalar todas las
+> versiones de PHP por ti. Si lo haces a mano:
+> ```bash
+> sudo add-apt-repository -y ppa:ondrej/php && sudo apt update
+> sudo apt install php7.4-fpm php8.1-fpm php8.2-fpm php8.3-fpm php8.4-fpm
+> ```
+
+Un **VPS de 2 vCPU / 4 GB RAM** con Ubuntu 22.04 LTS es un punto de partida cómodo para
+alojar varios WordPress + sitios estáticos.
+
 ## 🚀 Quick start
 
 > **Requisitos:** Linux con `nginx`, `php-fpm` (7.4 / 8.x), `mysql`/`mariadb`, `certbot`
-> (SSL wildcard) y Python 3.11+. Opcional: [Coolify](https://coolify.io/) para apps Docker.
-> DNS con un wildcard `*.tu-dominio` apuntando al servidor.
+> (SSL wildcard) y Python 3.10+. Opcional: [Coolify](https://coolify.io/) para apps Docker.
+> DNS con un wildcard `*.tu-dominio` apuntando al servidor. Ver
+> [Entorno recomendado](#-entorno-recomendado).
 
 ### Opción A · Instalador interactivo (recomendado)
 

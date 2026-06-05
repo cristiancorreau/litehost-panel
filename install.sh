@@ -91,10 +91,22 @@ if [ "$ENV_ONLY" = 0 ]; then
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -qq
       apt-get install -y -qq \
-        nginx php-fpm mariadb-server certbot \
+        nginx mariadb-server certbot \
         python3 python3-venv python3-pip \
-        unzip curl ca-certificates >/dev/null
+        unzip curl ca-certificates software-properties-common >/dev/null
       ok "Paquetes base instalados"
+
+      # PHP: para soportar varias versiones por sitio se usa el PPA ondrej/php.
+      if confirm "¿Añadir el PPA ondrej/php e instalar PHP 7.4 + 8.1–8.4 (multi-versión)?"; then
+        add-apt-repository -y ppa:ondrej/php >/dev/null 2>&1 && apt-get update -qq
+        apt-get install -y -qq \
+          php7.4-fpm php8.1-fpm php8.2-fpm php8.3-fpm php8.4-fpm \
+          php8.3-mysql php8.3-cli >/dev/null 2>&1 || warn "Algún paquete PHP no estaba disponible; revisa manualmente."
+        ok "PHP multi-versión instalado (7.4 / 8.1–8.4)"
+      else
+        apt-get install -y -qq php-fpm php-mysql php-cli >/dev/null
+        warn "Instalada solo la versión de PHP por defecto del sistema."
+      fi
       if ! command -v wp >/dev/null 2>&1; then
         if confirm "¿Instalar WP-CLI (necesario para sitios WordPress)?"; then
           curl -sSL -o /usr/local/bin/wp \
