@@ -104,18 +104,24 @@ cambio toca este archivo o la forma en que el panel lo invoca, presta especial a
 
 ## Probar tus cambios
 
-Antes de abrir el PR, como mínimo:
+No hay suite de tests todavía (un buen primer PR, por cierto). El
+[CI](.github/workflows/ci.yml) corre estas dos comprobaciones en cada push y PR — pásalas antes
+de abrirlo:
 
 ```bash
-# 1) Que todo compile
-python -m compileall app
+# 1) Que todo compile (el CI lo prueba en Python 3.10, 3.11 y 3.12)
+python -m compileall -q app
 
-# 2) Que el instalador no tenga errores de sintaxis
+# 2) Que los scripts no tengan errores de sintaxis
 bash -n install.sh
+bash -n deploy/sw-panel-helper
 
 # 3) Arranca el panel y revisa las vistas afectadas
 PANEL_ENV_FILE="$PWD/dev.env" ./venv/bin/uvicorn app.main:app --reload
 ```
+
+El CI **no** valida comportamiento: que pase no significa que tu cambio funcione. Arranca el
+panel y ejercita el flujo que tocaste.
 
 Si tocas el instalador o el helper, pruébalo en una **VM/contenedor desechable** con Ubuntu
 22.04 y describe en el PR qué verificaste.
