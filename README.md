@@ -175,30 +175,47 @@ sudo ./install.sh
 <summary>Pasos manuales equivalentes</summary>
 
 ```bash
-# 1) Código y entorno virtual
+# 1) Usuario de servicio sin privilegios (el que corre el panel)
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin swpanel
+
+# 2) Código y entorno virtual
 git clone https://github.com/cristiancorreau/litehost-panel.git /opt/sw-panel
 cd /opt/sw-panel
 python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
 
-# 2) Configuración (genera hash y secreto siguiendo los comentarios)
-sudo mkdir -p /etc/sw-panel
+# 3) Configuración del panel (genera el hash siguiendo los comentarios del archivo)
+sudo mkdir -p /etc/sw-panel /var/lib/sw-panel
 sudo cp .env.example /etc/sw-panel/panel.env
 sudo nano /etc/sw-panel/panel.env
+sudo chown root:swpanel /etc/sw-panel/panel.env && sudo chmod 0640 /etc/sw-panel/panel.env
+sudo chown -R swpanel:swpanel /var/lib/sw-panel
 
-# 3) Helper privilegiado + sudoers
+# 4) Rutas del helper (sudo limpia el entorno; ver "Configuración")
+sudo tee /etc/sw-panel/helper.env >/dev/null <<'EOF'
+PANEL_WWW_ROOT=/var/www
+PANEL_NGINX_AVAILABLE=/etc/nginx/sites-available
+PANEL_NGINX_ENABLED=/etc/nginx/sites-enabled
+PANEL_BACKUPS_DIR=/home/appuser/sw-panel-backups
+EOF
+sudo chmod 0644 /etc/sw-panel/helper.env
+
+# 5) Helper privilegiado + sudoers (el modo 0750 root:root es parte del modelo de seguridad)
 sudo install -o root -g root -m 0750 deploy/sw-panel-helper /usr/local/bin/sw-panel-helper
 sudo install -o root -g root -m 0440 deploy/sudoers.sw-panel /etc/sudoers.d/sw-panel
 sudo visudo -cf /etc/sudoers.d/sw-panel
 
-# 4) Servicio systemd
+# 6) Servicio systemd (edita User/Group y ReadWritePaths si no usas swpanel/appuser)
 sudo cp deploy/sw-panel.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now sw-panel
 
-# 5) Vhost del panel (edita server_name + rutas SSL)
+# 7) Vhost del panel (edita server_name + rutas SSL)
 sudo cp deploy/nginx-panel.conf.example /etc/nginx/sites-available/panel.conf
 sudo ln -s /etc/nginx/sites-available/panel.conf /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
+
+Los directorios de backups y uploads (`/home/appuser/sw-panel-backups`, `/home/appuser/uploads`)
+deben existir y pertenecer a tu `PANEL_SYSTEM_USER`; systemd los declara en `ReadWritePaths`.
 
 </details>
 
@@ -206,7 +223,8 @@ El panel queda en **`https://panel.<tu-dominio>`**, protegido con HTTP Basic.
 
 ## 🔧 Configuración
 
-Todo vive en `panel.env` (ver [`.env.example`](.env.example)).
+El panel lee **`/etc/sw-panel/panel.env`** (ver [`.env.example`](.env.example)). La ruta es
+configurable con la variable `PANEL_ENV_FILE`, útil en desarrollo.
 
 <details>
 <summary><b>Variables de entorno</b></summary>
@@ -214,39 +232,97 @@ Todo vive en `panel.env` (ver [`.env.example`](.env.example)).
 | Variable | Default | Para qué |
 |---|---|---|
 | `PANEL_ADMIN_USER` | `admin` | Usuario del login. |
-| `PANEL_ADMIN_PASSWORD_HASH` | — | Hash **bcrypt** de la contraseña. |
-| `PANEL_SESSION_SECRET` | `change-me` | Secreto de sesión. |
+| `PANEL_ADMIN_PASSWORD_HASH` | — | Hash **bcrypt** de la contraseña. Sin él, ningún login es válido. |
 | `PANEL_LAB_DOMAIN` | `lab.example.com` | Dominio base de los subdominios. |
 | `PANEL_SYSTEM_USER` | `appuser` | Usuario dueño de `/home/<user>` (uploads/backups). |
 | `MYSQL_ROOT_USER` / `MYSQL_ROOT_PASS` | `root` / — | Credenciales para crear BDs. |
 | `MYSQL_HOST` | `localhost` | Host de MySQL/MariaDB. |
 | `PANEL_DEFAULT_PHP` | `8.3` | PHP por defecto para sitios nuevos. |
-| `COOLIFY_API_URL` / `COOLIFY_API_TOKEN` | — | Integración opcional con Coolify. |
+| `COOLIFY_API_URL` / `COOLIFY_API_TOKEN` | — | Integración opcional con Coolify. Token vacío = sin Coolify. |
 | `COOLIFY_PORT_START` / `COOLIFY_PORT_END` | `8101` / `8200` | Rango de puertos para apps. |
+| `PANEL_SESSION_SECRET` | `change-me` | **Reservado, hoy sin efecto.** La autenticación es HTTP Basic *stateless*: el panel no crea sesiones. El instalador lo genera igual, previendo un futuro login por cookie. |
 
-Genera el hash y el secreto:
+Rutas — todas opcionales, con defaults sensatos:
+
+| Variable | Default |
+|---|---|
+| `PANEL_ENV_FILE` | `/etc/sw-panel/panel.env` |
+| `PANEL_BASE_DIR` | `/opt/sw-panel` |
+| `PANEL_DATA_DIR` | `/var/lib/sw-panel` (SQLite, uploads, assets de la wiki) |
+| `PANEL_HOME_DIR` | `/home/<PANEL_SYSTEM_USER>` |
+| `PANEL_BACKUPS_DIR` | `<PANEL_HOME_DIR>/sw-panel-backups` |
+| `PANEL_WWW_ROOT` | `/var/www` |
+| `PANEL_NGINX_AVAILABLE` / `PANEL_NGINX_ENABLED` | `/etc/nginx/sites-available` / `-enabled` |
+| `PANEL_SSL_CERT` / `PANEL_SSL_KEY` | `/etc/letsencrypt/live/<dominio>/{fullchain,privkey}.pem` |
+| `PANEL_LANDING_HTML` | `<PANEL_WWW_ROOT>/<dominio>/index.html` |
+
+Genera el hash de la contraseña:
 
 ```bash
 python3 -c "from passlib.hash import bcrypt; print(bcrypt.hash('TU_PASSWORD'))"
-python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
 </details>
 
+<details>
+<summary><b>El segundo archivo: <code>helper.env</code></b></summary>
+
+`sudo` limpia el entorno, así que el helper **no hereda** la configuración del panel: lee sus
+rutas de **`/etc/sw-panel/helper.env`** (modo `0644`, sin secretos). El instalador lo escribe por
+ti; si instalas a mano y cambiaste alguna ruta, este archivo debe reflejarla:
+
+```bash
+PANEL_WWW_ROOT=/var/www
+PANEL_NGINX_AVAILABLE=/etc/nginx/sites-available
+PANEL_NGINX_ENABLED=/etc/nginx/sites-enabled
+PANEL_BACKUPS_DIR=/home/appuser/sw-panel-backups
+```
+
+Si falta, el helper usa esos mismos valores por defecto — el desajuste solo aparece si tus rutas
+reales son otras.
+
+</details>
+
+### Health check
+
+`GET /healthz` responde `{"ok": true}` **sin autenticación** — es el único endpoint público junto
+con el redirect legacy `/architecture` → `/docs/architecture`. Úsalo para monitoreo de uptime.
+
 ## 🛡 El helper privilegiado
 
-[`deploy/sw-panel-helper`](deploy/sw-panel-helper) es una **implementación de referencia** que
-expone subcomandos acotados (nginx, docroots, gestor de archivos limitado a `/var/www`, backups,
-php-fpm, servicios, WP-CLI). El panel jamás ejecuta root directamente: solo invoca este helper
-vía `sudo -n`. Es el componente con privilegios — **audítalo y ajústalo a tu entorno antes de
-producción**.
+[`deploy/sw-panel-helper`](deploy/sw-panel-helper) es una **implementación de referencia**: un
+script bash con ~40 subcomandos acotados (nginx, docroots, gestor de archivos, backups, php-fpm,
+servicios, WP-CLI). El panel jamás ejecuta root directamente — todo pasa por
+`sudo -n /usr/local/bin/sw-panel-helper <subcomando>`, centralizado en
+[`app/services/runner.py`](app/services/runner.py). Es el componente con privilegios:
+**audítalo y ajústalo a tu entorno antes de producción**.
+
+Conviene entender **dónde está el límite real**:
+
+- La regla de `sudoers` autoriza el **binario, no sus argumentos**. No es un allowlist por
+  subcomando: el allowlist real es el `case` dentro del propio script (lo desconocido sale con
+  `exit 2`).
+- Por eso el helper **debe** quedar `root:root` modo `0750`. Si el usuario del panel pudiera
+  escribirlo, toda la contención desaparece.
+- El **gestor de archivos** sí está confinado a `$WWW_ROOT` (`/var/www`) por el guarda
+  `require_under_www`. Los subcomandos de infraestructura (`write-vhost`, `read-file`,
+  `mysqldump`, `tar-backup`…) aceptan rutas arbitrarias **por diseño**: escriben en
+  `/etc/nginx` y en el directorio de backups. Tenlo presente si añades subcomandos.
 
 ## 🔒 Seguridad
 
-- Usa una contraseña fuerte y cambia `PANEL_SESSION_SECRET`.
-- Sirve el panel **siempre tras HTTPS**.
-- La regla de `sudoers` debe apuntar **solo** a `sw-panel-helper`.
+- El panel es **administración de servidor tras un único login**: quien entra puede escribir
+  vhosts, tocar bases de datos y ejecutar acciones root vía el helper. Trátalo como acceso
+  privilegiado — contraseña fuerte y, si puedes, restringe por IP en el vhost de nginx.
+- Sirve el panel **siempre tras HTTPS**; HTTP Basic manda las credenciales en cada petición.
+- Sin `PANEL_ADMIN_PASSWORD_HASH` **ningún** login es válido (falla cerrado), pero el panel
+  arranca igual: verifica que quedó configurado.
+- La regla de `sudoers` debe apuntar **solo** a `sw-panel-helper`, y el helper seguir `root:root`
+  `0750`.
 - El gestor de archivos está restringido a `/var/www`; revisa los guardas si amplías rutas.
+- El control de servicios (`/services/{servicio}/{acción}`) **no valida** contra un allowlist:
+  llega tal cual a `systemctl`. Es una acción de administrador autenticado, no una escalada, pero
+  no asumas que solo alcanza nginx y php-fpm.
 
 ## 🧰 Stack
 
