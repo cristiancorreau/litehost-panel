@@ -42,6 +42,7 @@ documentación desde una sola interfaz.
 - [Entorno recomendado](#-entorno-recomendado)
 - [Quick start](#-quick-start)
 - [Configuración](#-configuración)
+- [Mapa del panel](#-mapa-del-panel)
 - [El helper privilegiado](#-el-helper-privilegiado)
 - [Seguridad](#-seguridad)
 - [Stack](#-stack)
@@ -287,6 +288,26 @@ reales son otras.
 
 `GET /healthz` responde `{"ok": true}` **sin autenticación** — es el único endpoint público junto
 con el redirect legacy `/architecture` → `/docs/architecture`. Úsalo para monitoreo de uptime.
+
+## 🗺 Mapa del panel
+
+Una vez dentro (`https://panel.<tu-dominio>`), estas son las secciones principales. Todas
+requieren login salvo `GET /healthz`. El panel **no** expone `/docs` de OpenAPI ni Swagger.
+
+| Ruta | Sección | Qué encuentras |
+|---|---|---|
+| `/` | **Dashboard** | Listado de sitios activos y regeneración de la landing del dominio base. |
+| `/sites/new` | **Nuevo sitio** | Asistente: WordPress (`/sites/new/wp`), estático (`/sites/new/static`), Coolify (`/sites/new/coolify`) y restore Duplicator (`/sites/new/duplicator`, `…/duplicator-from-disk`). |
+| `/sites/{id}` | **Detalle de sitio** | Info del sitio, cambio de versión PHP y borrado (con backup automático). |
+| `/vhost/{fqdn}` | **Detalle de vhost** | Inventario en vivo de `sites-enabled`; cambiar PHP del vhost. |
+| `/services` | **Servicios** | Estado y control (start/stop/reload) de systemd + gestión de pools PHP-FPM. |
+| `/services/fpm/{version}/config` | **PHP-FPM** | Ver/editar parámetros del pool por versión. |
+| `/logs` | **Logs** | Historial de operaciones ejecutadas por el panel. |
+| `/files` | **Archivos** | Navegar, editar, subir y ajustar permisos dentro de `/var/www`. |
+| `/restore` | **Restore** | Restaurar un backup de sitio generado al borrar. |
+| `/metrics` | **Métricas** | CPU, RAM, disco y uso por sitio (`/api/metrics` en JSON). |
+| `/docs` | **Mini-wiki** | Páginas markdown editables, sembradas desde `app/seed_docs.py`. |
+| `/healthz` | **Health check** | `{"ok": true}` público, sin auth. |
 
 ## 🛡 El helper privilegiado
 
